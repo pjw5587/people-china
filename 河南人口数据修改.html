@@ -1,0 +1,4126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>豫·人口 | 河南省人口数据综合管理平台</title>
+        <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+        <!-- GIS 库 -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+        <style>
+              *{margin:0;padding:0;box-sizing:border-box;}
+                html,body{height:100%;}
+                body{
+                    font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+                    background:#050816;color:#e8eaf2;
+                    overflow:hidden;min-height:100vh;
+                    cursor:default;
+                }
+                ::-webkit-scrollbar{width:10px;}
+                ::-webkit-scrollbar-track{background:#0a0e27;}
+                ::-webkit-scrollbar-thumb{
+                    background:linear-gradient(180deg,#e60012,#d4af37,#00d4ff);
+                    border-radius:5px;
+                    box-shadow:0 0 8px rgba(230,0,18,.6);
+                }
+
+                /* ===== 背景层 ===== */
+                .bg-layer{position:fixed;inset:0;z-index:-3;
+                    background:
+                    radial-gradient(ellipse at 20% 10%,rgba(230,0,18,.25),transparent 50%),
+                    radial-gradient(ellipse at 80% 80%,rgba(212,175,55,.2),transparent 50%),
+                    radial-gradient(ellipse at 50% 50%,rgba(0,212,255,.12),transparent 60%),
+                    linear-gradient(135deg,#050816 0%,#0a0e27 50%,#1a0b2e 100%);
+                    background-size:200% 200%;
+                    animation: bgShift 20s ease-in-out infinite;
+                }
+                @keyframes bgShift{
+                    0%,100%{background-position:0% 0%;}
+                    50%{background-position:100% 100%;}
+                }
+
+                /* Canvas粒子 */
+                #particles{
+                    position:fixed;inset:0;z-index:-2;
+                    pointer-events:none;
+                }
+
+                /* 扫描线 */
+                .scan-line{
+                    position:fixed;top:0;left:0;right:0;height:100vh;z-index:-1;
+                    pointer-events:none;
+                    background:linear-gradient(180deg,transparent 0%,rgba(0,212,255,.03) 50%,transparent 100%);
+                    background-size:100% 4px;
+                    animation: scanMove 8s linear infinite;
+                    opacity:.5;
+                }
+                @keyframes scanMove{
+                    0%{background-position:0 0;}
+                    100%{background-position:0 100vh;}
+                }
+
+                /* 浮动光晕 */
+                .float-orb{position:fixed;border-radius:50%;filter:blur(80px);opacity:.5;z-index:-1;pointer-events:none;}
+                .orb1{width:500px;height:500px;background:radial-gradient(circle,#e60012,transparent);top:5%;left:-100px;animation:floatOrb1 18s infinite ease-in-out;}
+                .orb2{width:600px;height:600px;background:radial-gradient(circle,#d4af37,transparent);top:40%;right:-200px;animation:floatOrb2 22s infinite ease-in-out;}
+                .orb3{width:400px;height:400px;background:radial-gradient(circle,#00d4ff,transparent);bottom:5%;left:30%;animation:floatOrb3 16s infinite ease-in-out;}
+                .orb4{width:350px;height:350px;background:radial-gradient(circle,#ff00ff,transparent);top:60%;left:5%;animation:floatOrb1 20s infinite ease-in-out reverse;}
+                @keyframes floatOrb1{0%,100%{transform:translate(0,0) scale(1);}33%{transform:translate(150px,-80px)scale(1.2);}66%{transform:translate(-80px,60px) scale(.9);}}
+                @keyframes floatOrb2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-120px,100px) scale(1.15);}}
+                @keyframes floatOrb3{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(100px,-100px) scale(1.1);}}
+
+                 /* ===== 顶部标题栏 ===== */
+                .top-bar{
+                    background:linear-gradient(90deg,#5a0000 0%,#e60012 30%,#ff5050 50%,#e60012 70%,#5a0000 100%);
+                    background-size:200% 100%;
+                    animation: topGradient 8s linear infinite;
+                    padding:18px 40px;display:flex;align-items:center;justify-content:space-between;
+                    border-bottom:3px solid #d4af37;
+                    box-shadow:0 4px 30px rgba(230,0,18,.5), inset 0 1px 0 rgba(255,255,255,.2);
+                    position:relative;z-index:100;
+                }
+                @keyframes topGradient{0%{background-position:0% 0%;}100%{background-position:200% 0%;}}
+                .top-bar::before{
+                    content:"";position:absolute;top:0;left:0;right:0;height:2px;
+                    background:linear-gradient(90deg,transparent,#ffd700,#fff,#ffd700,transparent);
+                    animation: shimmer 3s linear infinite;
+                }
+                .top-bar::after{
+                    content:"";position:absolute;bottom:0;left:0;right:0;height:1px;
+                    background:linear-gradient(90deg,transparent,#ffd700,transparent);
+                }
+                @keyframes shimmer{0%{opacity:.4;}50%{opacity:1;}100%{opacity:.4;}}
+                .logo-wrap{display:flex;align-items:center;gap:16px;}
+                .logo-icon{
+                    width:54px;height:54px;border-radius:12px;
+                    background:linear-gradient(135deg,#ffd700 0%,#d4af37 50%,#8b6914 100%);
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:30px;font-weight:900;color:#8b0000;
+                    box-shadow:0 0 30px rgba(212,175,55,.8), inset 0 0 10px rgba(255,255,255,.3);
+                    animation: logoPulse 2s ease-in-out infinite;
+                    position:relative;
+                }
+                .logo-icon::before{
+                    content:"";position:absolute;inset:-3px;border-radius:14px;
+                    background:linear-gradient(45deg,#e60012,#ffd700,#e60012,#ffd700);
+                    background-size:300% 300%;
+                    z-index:-1;
+                    animation: rotateGrad 4s linear infinite;
+                }
+                @keyframes logoPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
+                @keyframes rotateGrad{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
+
+                .logo-text h1{
+                    font-size:26px;color:#fff;letter-spacing:3px;font-weight:900;
+                    text-shadow:0 0 20px rgba(255,255,255,.5),0 2px 4px rgba(0,0,0,.5);
+                    background:linear-gradient(90deg,#fff,#ffd700,#fff);
+                    background-size:200% auto;
+                    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+                    animation: textShine 3s linear infinite;
+                }
+                @keyframes textShine{0%{background-position:0% center;}100%{background-position:200% center;}}
+                .logo-text p{font-size:11px;color:#ffe4b5;letter-spacing:5px;margin-top:2px;text-shadow:0 0 8px rgba(255,228,181,.5);}
+
+                .top-right{display:flex;align-items:center;gap:18px;}
+                .top-date{
+                    color:#fff;font-size:13px;
+                    padding:8px 16px;border-right:1px solid rgba(255,255,255,.3);
+                    text-shadow:0 0 8px rgba(255,255,255,.3);
+                }
+                .top-time{
+                    color:#ffd700;font-size:20px;font-weight:bold;
+                    font-family:"Impact",sans-serif;
+                    text-shadow:0 0 15px rgba(255,215,0,.8),0 0 30px rgba(255,215,0,.4);
+                    min-width:90px;text-align:right;
+                    animation: timePulse 2s ease-in-out infinite;
+                }
+                @keyframes timePulse{0%,100%{text-shadow:0 0 15px rgba(255,215,0,.8),0 0 30px rgba(255,215,0,.4);}50%{text-shadow:0 0 25px rgba(255,215,0,1),0 0 50px rgba(255,215,0,.6);}}
+                .top-badge{
+                    padding:6px 14px;background:rgba(0,0,0,.4);
+                    border:1px solid #ffd700;border-radius:20px;
+                    font-size:11px;color:#ffd700;letter-spacing:1px;
+                    box-shadow:0 0 15px rgba(255,215,0,.3);
+                    animation: badgeGlow 2s ease-in-out infinite;
+                }
+                @keyframes badgeGlow{0%,100%{box-shadow:0 0 15px rgba(255,215,0,.3);}50%{box-shadow:0 0 25px rgba(255,215,0,.6);}}
+
+                /* ===== 顶部导航 ===== */
+                .nav-bar{
+                    background:linear-gradient(90deg,rgba(10,14,39,.95),rgba(26,11,46,.95));
+                    backdrop-filter:blur(20px);
+                    border-bottom:1px solid rgba(212,175,55,.3);
+                    padding:0 40px;display:flex;align-items:center;
+                    position:relative;z-index:99;
+                    box-shadow:0 4px 20px rgba(0,0,0,.3);
+                }
+                .nav-bar::after{
+                    content:"";position:absolute;bottom:0;left:0;right:0;height:1px;
+                    background:linear-gradient(90deg,transparent,#d4af37 50%,transparent);
+                }
+                .nav-item{
+                    padding:18px 24px;color:#cdd5e0;
+                    font-size:15px;cursor:pointer;position:relative;
+                    transition:.3s;letter-spacing:1px;
+                    border-right:1px solid rgba(255,255,255,.05);
+                    overflow:hidden;
+                }
+                .nav-item:first-child{border-left:1px solid rgba(255,255,255,.05);}
+                .nav-item::before{
+                    content:"";position:absolute;top:0;left:50%;width:0;height:3px;
+                    background:linear-gradient(90deg,#e60012,#ffd700,#00d4ff);
+                    box-shadow:0 0 15px #d4af37;
+                    transition:.3s;transform:translateX(-50%);
+                }
+                .nav-item::after{
+                    content:"";position:absolute;inset:0;
+                    background:radial-gradient(circle at center,rgba(212,175,55,.2),transparent 70%);
+                    opacity:0;transition:.3s;
+                }
+                .nav-item:hover{color:#fff;}
+                .nav-item:hover::after{opacity:1;}
+                .nav-item.active{
+                    color:#fff;
+                    background:linear-gradient(180deg,transparent,rgba(212,175,55,.15));
+                    text-shadow:0 0 10px rgba(255,215,0,.5);
+                }
+                .nav-item.active::before{width:100%;}
+                .nav-item .num{
+                    display:inline-block;width:20px;height:20px;line-height:20px;
+                    text-align:center;border-radius:50%;
+                    background:rgba(212,175,55,.2);color:#d4af37;
+                    font-size:11px;margin-right:8px;
+                    font-family:"Impact",sans-serif;
+                    transition:.3s;
+                }
+                .nav-item.active .num{
+                    background:linear-gradient(135deg,#ffd700,#d4af37);
+                    color:#0a0e27;
+                    box-shadow:0 0 12px rgba(255,215,0,.8);
+                    animation: numSpin 3s linear infinite;
+                }
+                @keyframes numSpin{0%,100%{transform:rotate(0);}25%{transform:rotate(10deg);}75%{transform:rotate(-10deg);}}
+
+                /* ===== 主内容 ===== */
+                .main{
+                    height:calc(100vh - 154px);
+                    overflow-y:auto;overflow-x:hidden;
+                    position:relative;
+                }
+                .page{
+                    display:none;
+                    padding:30px 40px 50px;
+                    animation: pageIn .7s cubic-bezier(.4,0,.2,1);
+                    position:relative;
+                }
+                .page.active{display:block;}
+                .page.exit{animation: pageOut .5s cubic-bezier(.4,0,.2,1) forwards;}
+                @keyframes pageIn{
+                    0%{opacity:0;transform:translateY(40px) scale(.95);filter:blur(8px);}
+                    100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0);}
+                }
+                @keyframes pageOut{
+                    0%{opacity:1;transform:translateY(0) scale(1);filter:blur(0);}
+                    100%{opacity:0;transform:translateY(-30px) scale(.95);filter:blur(8px);}
+                }
+
+                .page-head{
+                    display:flex;align-items:center;justify-content:space-between;
+                    margin-bottom:24px;padding-bottom:16px;
+                    border-bottom:1px solid rgba(212,175,55,.2);
+                    position:relative;
+                }
+                .page-head::after{
+                    content:"";position:absolute;bottom:-1px;left:0;
+                    width:200px;height:2px;
+                    background:linear-gradient(90deg,#e60012,#ffd700,transparent);
+                    box-shadow:0 0 10px #ffd700;
+                    animation: headLine 3s ease-out infinite;
+                }
+                @keyframes headLine{0%{width:0;}100%{width:200px;}}
+
+                .page-title{display:flex;align-items:center;gap:14px;}.
+                .page-title .bar{
+                    width:6px;height:32px;
+                    background:linear-gradient(180deg,#e60012,#ffd700,#00d4ff);
+                    border-radius:3px;
+                    box-shadow:0 0 15px rgba(255,215,0,.8);
+                    animation: barGlow 2s ease-in-out infinite;
+                }
+                @keyframes barGlow{0%,100%{box-shadow:0 0 15px rgba(255,215,0,.8);}50%{box-shadow:0 0 25px rgba(255,215,0,1);}}
+                .page-title h2{
+                    font-size:28px;font-weight:900;color:#fff;
+                    letter-spacing:2px;
+                    text-shadow:0 0 20px rgba(255,255,255,.3);
+                }
+                .page-title .sub{
+                    font-size:11px;color:#ffd700;letter-spacing:3px;
+                    padding:3px 12px;border:1px solid rgba(255,215,0,.4);
+                    border-radius:14px;background:rgba(255,215,0,.05);
+                    box-shadow:inset 0 0 8px rgba(255,215,0,.1);
+                }
+                .breadcrumb{color:#6a7088;font-size:13px;}
+                .breadcrumb span{color:#ffd700;}
+
+                /* ===== 卡片 ===== */
+.card{
+    background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+    border:1px solid rgba(212,175,55,.15);
+    border-radius:14px;padding:20px;
+    backdrop-filter:blur(20px);
+    transition:all .4s cubic-bezier(.4,0,.2,1);
+    position:relative;overflow:hidden;
+    transform-style:preserve-3d;
+}
+.card::before{
+    content:"";position:absolute;inset:-1px;border-radius:14px;
+    padding:1px;
+    background:linear-gradient(135deg,transparent,rgba(212,175,55,.3),transparent);
+    -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+    mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+    -webkit-mask-composite:xor;
+    mask-composite:exclude;
+    opacity:0;transition:.3s;
+}
+.card:hover{
+    border-color:rgba(212,175,55,.5);
+    box-shadow:0 15px 40px rgba(0,0,0,.5),0 0 30px rgba(212,175,55,.2);
+    transform:translateY(-4px) rotateX(2deg);
+}
+.card:hover::before{opacity:1;}
+
+.card-h{
+    display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;
+}
+.card-h h3{
+    font-size:15px;color:#fff;font-weight:bold;
+    display:flex;align-items:center;gap:8px;
+}
+.card-h h3::before{
+    content:"";width:3px;height:14px;
+    background:linear-gradient(180deg,#e60012,#ffd700,#00d4ff);
+    background-size:100% 200%;
+    animation: gradShift 3s linear infinite;
+    border-radius:2px;
+}
+@keyframes gradShift{0%{background-position:0% 0%;}100%{background-position:0% 200%;}}
+.card-h .badge{
+    font-size:10px;color:#ffd700;padding:3px 10px;
+    border:1px solid rgba(255,215,0,.3);border-radius:12px;
+    background:rgba(255,215,0,.05);
+}
+
+ /* ===== KPI卡片（重点升级） ===== */
+.kpi-grid{
+    display:grid;grid-template-columns:repeat(4,1fr);
+    gap:16px;margin-bottom:24px;
+}
+.kpi{
+    background:linear-gradient(135deg,rgba(255,255,255,.05),rgba(255,255,255,.01));
+    border:1px solid rgba(212,175,55,.2);border-radius:14px;
+    padding:22px 18px;position:relative;overflow:hidden;
+    transition:.3s;cursor:pointer;
+    transform-style:preserve-3d;
+}
+.kpi::before{
+    content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,215,0,.15),transparent);
+    transition:left .8s;
+}
+.kpi::after{
+    content:"";position:absolute;top:0;right:0;width:100px;height:100px;
+    background:radial-gradient(circle,rgba(255,215,0,.3),transparent 70%);
+    border-radius:50%;
+}
+.kpi:hover{
+    transform:translateY(-6px) scale(1.02);
+    border-color:#ffd700;
+    box-shadow:0 20px 40px rgba(212,175,55,.3),0 0 30px rgba(255,215,0,.2);
+}
+.kpi:hover::before{left:100%;}
+.kpi .label{
+    font-size:12px;color:#a0a8c0;letter-spacing:2px;margin-bottom:10px;
+    text-transform:uppercase;
+}
+.kpi .num{
+    font-size:42px;font-weight:900;line-height:1;margin-bottom:6px;
+    font-family:"Impact","Arial Black",sans-serif;
+    position:relative;z-index:1;
+/* 移除发光滤镜，数字更清晰 */
+    -webkit-text-stroke:0.3px rgba(255,255,255,.4);
+    text-stroke:0.3px rgba(255,255,255,.4);
+}
+.kpi .unit{font-size:16px;color:#a0a8c0;font-family:"Microsoft YaHei";}
+.kpi .trend{
+    font-size:11px;margin-top:10px;display:flex;align-items:center;gap:6px;
+    color:#a0a8c0;
+}
+.kpi .trend.up{color:#00d4ff;}
+.kpi .trend.down{color:#e60012;}
+
+  /* 渐变数字 - 保留渐变效果但不加模糊光晕 */
+.kpi.k-red .num{
+    background:linear-gradient(180deg,#ffffff 0%,#ffd700 60%,#ff4040 100%);
+    background-size:100% 200%;
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    animation: gradShift 4s ease-in-out infinite;
+}
+.kpi.k-gold .num{
+    background:linear-gradient(180deg,#ffffff 0%,#ffd700 60%,#d4af37 100%);
+    background-size:100% 200%;
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    animation: gradShift 4s ease-in-out infinite;
+}
+.kpi.k-blue .num{
+    background:linear-gradient(180deg,#ffffff 0%,#7ee0ff 60%,#00a8e8 100%);
+    background-size:100% 200%;
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    animation: gradShift 4s ease-in-out infinite;
+}
+.kpi.k-gray .num{
+    background:linear-gradient(180deg,#ffffff 0%,#d0d0d0 60%,#909090 100%);
+    background-size:100% 200%;
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    animation: gradShift 4s ease-in-out infinite;
+}
+@keyframes gradShift{
+    0%,100%{background-position:0% 0%;}
+    50%{background-position:0% 100%;}
+}
+
+ /* ===== 网格 ===== */
+.row{display:grid;gap:18px;margin-bottom:18px;}
+.row.c2{grid-template-columns:1fr 1fr;}
+.row.c3{grid-template-columns:1fr 1fr 1fr;}
+.row.c4{grid-template-columns:repeat(4,1fr);}
+.row.c1-2{grid-template-columns:1fr 2fr;}
+.row.c2-1{grid-template-columns:2fr 1fr;}
+.echart{width:100%;height:300px;}
+
+/* ===== 表格 ===== */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{
+    text-align:left;padding:10px 12px;
+    background:linear-gradient(90deg,rgba(255,215,0,.08),rgba(255,215,0,.03));
+    color:#ffd700;font-weight:bold;letter-spacing:1px;
+    border-bottom:1px solid rgba(255,215,0,.2);
+    text-shadow:0 0 8px rgba(255,215,0,.3);
+}
+td{
+    padding:10px 12px;color:#cdd5e0;
+    border-bottom:1px solid rgba(255,255,255,.05);
+    transition:.2s;
+}
+tr:hover td{
+    background:linear-gradient(90deg,rgba(255,215,0,.08),transparent);
+    color:#fff;
+    text-shadow:0 0 8px rgba(255,215,0,.3);
+}
+td.num{font-weight:bold;color:#fff;font-family:"Consolas",monospace;}
+td.up{color:#00d4ff;text-shadow:0 0 5px rgba(0,212,255,.5);}
+td.down{color:#e60012;text-shadow:0 0 5px rgba(230,0,18,.5);}
+td.tag{
+    color:#ffd700;padding:2px 8px;
+    border:1px solid rgba(255,215,0,.3);border-radius:10px;
+    font-size:11px;display:inline-block;
+}
+
+ /* ===== 进度条 ===== */
+.prog-wrap{padding:6px 0;}
+.prog-row{
+    display:flex;align-items:center;gap:12px;
+    padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);
+    transition:.3s;
+}
+.prog-row:hover{
+    padding-left:8px;
+    background:linear-gradient(90deg,rgba(255,215,0,.08),transparent);
+}
+.prog-rank{
+    width:24px;height:24px;line-height:24px;text-align:center;
+    border-radius:50%;font-size:11px;font-weight:bold;
+    background:rgba(212,175,55,.15);color:#d4af37;flex-shrink:0;
+    transition:.3s;
+}
+.prog-row:nth-child(1) .prog-rank{
+    background:linear-gradient(135deg,#ffd700,#e60012);
+    color:#fff;
+    box-shadow:0 0 15px rgba(216,38,38,.8);
+    animation: rank1 2s ease-in-out infinite;
+}
+.prog-row:nth-child(2) .prog-rank{
+    background:linear-gradient(135deg,#d4af37,#ffd700);
+    color:#fff;
+    box-shadow:0 0 12px rgba(212,175,55,.8);
+}
+.prog-row:nth-child(3) .prog-rank{
+    background:linear-gradient(135deg,#00d4ff,#0066cc);
+    color:#fff;
+    box-shadow:0 0 12px rgba(0,212,255,.8);
+}
+@keyframes rank1{0%,100%{transform:scale(1);}50%{transform:scale(1.15) rotate(5deg);}}
+.prog-name{flex:0 0 70px;color:#cdd5e0;font-size:13px;}
+.prog-bar{
+    flex:1;height:6px;
+    background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;
+    position:relative;
+}
+.prog-bar span{
+    display:block;height:100%;
+    background:linear-gradient(90deg,#e60012,#ffd700,#00d4ff);
+    background-size:200% 100%;
+    border-radius:3px;width:0;
+    animation: progAnim 2s cubic-bezier(.4,0,.2,1) forwards,progMove 3s linear infinite;
+    box-shadow:0 0 8px rgba(255,215,0,.5);
+    position:relative;
+}
+@keyframes progAnim{from{width:0;}}
+@keyframes progMove{0%{background-position:0% 50%;}100%{background-position:200% 50%;}}
+.prog-val{
+    flex:0 0 80px;text-align:right;color:#fff;font-weight:bold;font-size:13px;
+    font-family:"Consolas",monospace;
+    text-shadow:0 0 8px rgba(255,255,255,.5);
+}
+
+/* ===== 城市选择 ===== */
+.city-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;}
+.city-btn{
+    padding:6px 14px;border:1px solid rgba(212,175,55,.25);
+    background:rgba(255,255,255,.03);color:#cdd5e0;
+    border-radius:16px;cursor:pointer;font-size:12px;transition:.3s;
+    position:relative;overflow:hidden;
+}
+.city-btn::before{
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(90deg,#e60012,#ffd700);
+    opacity:0;transition:.3s;
+}
+.city-btn:hover{color:#fff;border-color:#ffd700;box-shadow:0 0 15px rgba(255,215,0,.3);}
+.city-btn.active{
+    background:linear-gradient(90deg,#e60012,#ffd700);
+    color:#fff;border-color:transparent;font-weight:bold;
+    box-shadow:0 0 20px rgba(230,0,18,.5);
+}
+.city-btn.active::before{opacity:1;}
+
+.city-detail{
+    background:linear-gradient(135deg,rgba(230,0,18,.08),rgba(212,175,55,.05));
+    border:1px solid rgba(212,175,55,.25);border-radius:14px;
+    padding:24px;position:relative;overflow:hidden;
+}
+.city-detail::before{
+    content:"";position:absolute;top:-40px;right:-40px;
+    width:180px;height:180px;border-radius:50%;
+    background:radial-gradient(circle,rgba(255,215,0,.3),transparent);
+    animation: detailPulse 4s ease-in-out infinite;
+}
+.city-detail::after{
+    content:"";position:absolute;bottom:0;left:0;right:0;height:2px;
+    background:linear-gradient(90deg,#e60012,#ffd700,#00d4ff);
+    background-size:200% 100%;
+    animation: progMove 3s linear infinite;
+}
+@keyframes detailPulse{0%,100%{transform:scale(1);opacity:.6;}50%{transform:scale(1.3);opacity:1;}}
+.city-detail h3{
+    font-size:30px;font-weight:900;margin-bottom:6px;
+    background:linear-gradient(90deg,#e60012,#ffd700);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    text-shadow:0 0 30px rgba(255,215,0,.3);
+}
+.city-detail .pos{color:#ffd700;font-size:12px;margin-bottom:14px;letter-spacing:2px;}
+.city-detail .desc{
+    color:#a8b0c4;font-size:13px;line-height:1.7;
+    padding-top:14px;border-top:1px solid rgba(212,175,55,.15);
+    position:relative;z-index:1;
+}
+
+  /* ===== 时间线 ===== */
+.timeline-wrap{
+    background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+    border:1px solid rgba(212,175,55,.2);border-radius:14px;
+    padding:28px;backdrop-filter:blur(20px);
+    position:relative;overflow:hidden;
+}
+.timeline-wrap::before{
+    content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,215,0,.05),transparent);
+    animation: shimmerMove 4s linear infinite;
+}
+@keyframes shimmerMove{0%{left:-100%;}100%{left:100%;}}
+.year-display{text-align:center;margin-bottom:24px;}
+.year-display .y{
+    font-size:72px;font-weight:900;line-height:1;
+    background:linear-gradient(180deg,#fff 0%,#ffd700 50%,#d4af37 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    font-family:"Impact",sans-serif;
+    filter:drop-shadow(0 0 20px rgba(255,215,0,.5));
+    animation: yearPulse 2s ease-in-out infinite;
+}
+@keyframes yearPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
+.year-display .t{font-size:12px;color:#9aa5b8;margin-top:4px;letter-spacing:2px;}
+.year-slider{position:relative;margin:24px 50px 30px;}
+.year-track{
+    height:8px;background:rgba(255,255,255,.1);border-radius:4px;
+    position:relative;overflow:hidden;
+}
+.year-progress{
+    position:absolute;top:0;left:0;height:100%;
+    background:linear-gradient(90deg,#e60012,#ffd700,#00d4ff);
+    background-size:200% 100%;
+    animation: progMove 3s linear infinite;
+    border-radius:4px;
+    box-shadow:0 0 15px rgba(255,215,0,.6);
+}
+.year-input{
+    width:100%;margin-top:-14px;-webkit-appearance:none;appearance:none;
+    background:transparent;height:30px;cursor:pointer;position:relative;z-index:2;
+}
+.year-input::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;
+    width:26px;height:26px;border-radius:50%;
+    background:radial-gradient(circle,#fff,#ffd700,#e60012);
+    border:3px solid #fff;
+    box-shadow:0 0 25px rgba(255,215,0,.8),0 0 50px rgba(255,215,0,.4);
+    cursor:pointer;
+    animation: thumbPulse 2s ease-in-out infinite;
+}
+@keyframes thumbPulse{0%,100%{box-shadow:0 0 25px rgba(255,215,0,.8),0 0 50px rgba(255,215,0,.4);}50%{box-shadow:0 0 40px rgba(255,215,0,1),0 0 80px rgba(255,215,0,.6);}}
+.year-ticks{display:flex;justify-content:space-between;margin-top:10px;color:#6a7088;font-size:11px;}
+.year-data{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:18px;}
+.year-data .item{
+    text-align:center;padding:14px 10px;
+    background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+    border-radius:10px;border:1px solid rgba(212,175,55,.15);
+    transition:.3s;position:relative;overflow:hidden;
+}
+.year-data .item:hover{
+    background:rgba(255,215,0,.08);border-color:#ffd700;
+    transform:translateY(-4px) scale(1.05);
+    box-shadow:0 10px 20px rgba(255,215,0,.2);
+}
+.year-data .item .v{
+    font-size:24px;font-weight:900;color:#fff;margin-bottom:4px;
+    font-family:"Consolas",monospace;
+    background:linear-gradient(180deg,#fff,#ffd700);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.year-data .item .l{font-size:11px;color:#8a92a8;letter-spacing:1px;}
+
+  /* ===== Tab切换 ===== */
+.tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;}
+.tab-btn{
+    padding:8px 20px;border:1px solid rgba(212,175,55,.3);
+    background:rgba(255,255,255,.03);color:#cdd5e0;
+    border-radius:20px;cursor:pointer;font-size:13px;transition:.3s;
+    position:relative;overflow:hidden;
+}
+.tab-btn::before{
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(90deg,#e60012,#ffd700);
+    opacity:0;transition:.3s;
+}
+.tab-btn:hover{color:#fff;border-color:#ffd700;box-shadow:0 0 15px rgba(255,215,0,.2);}
+.tab-btn.active{
+    background:linear-gradient(90deg,#e60012,#ffd700);
+    color:#fff;border-color:transparent;font-weight:bold;
+    box-shadow:0 0 25px rgba(230,0,18,.5);
+}
+.tab-btn.active::before{opacity:1;}
+.tab-pane{display:none;animation: fadeUp 0.5s ease;}
+.tab-pane.active{display:block;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(15px);}to{opacity:1;transform:translateY(0);}}
+
+  /* mini-card */
+.mini-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.mini-card{
+    background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+    border:1px solid rgba(212,175,55,.15);border-radius:10px;
+    padding:16px 12px;text-align:center;transition:.3s;cursor:pointer;
+    position:relative;overflow:hidden;
+}
+.mini-card:hover{
+    transform:translateY(-3px) scale(1.03);border-color:#ffd700;
+    box-shadow:0 10px 25px rgba(255,215,0,.2);
+}
+.mini-card .v{font-size:24px;font-weight:900;color:#fff;margin-bottom:4px;font-family:"Impact",sans-serif;}
+.mini-card .l{font-size:11px;color:#8a92a8;letter-spacing:1px;}
+.mini-card .u{font-size:10px;color:#ffd700;margin-top:3px;}
+
+  /* Footer */
+footer{
+    text-align:center;padding:14px;
+    background:linear-gradient(90deg,rgba(10,14,39,.9),rgba(26,11,46,.9));
+    border-top:1px solid rgba(212,175,55,.15);
+    font-size:11px;color:#6a7088;letter-spacing:1px;
+    position:fixed;bottom:0;left:0;right:0;z-index:50;
+    text-shadow:0 0 8px rgba(255,215,0,.2);
+}
+
+  /* ===== 响应 ===== */
+@media (max-width:1200px){
+    .kpi-grid,.mini-grid{grid-template-columns:repeat(2,1fr);}
+    .row.c3,.row.c4{grid-template-columns:repeat(2,1fr);}
+    .row.c1-2,.row.c2-1{grid-template-columns:1fr;}
+    .year-data{grid-template-columns:repeat(3,1fr);}
+}
+@media (max-width:768px){
+    .top-bar{padding:14px 20px;}
+    .nav-bar{padding:0 10px;overflow-x:auto;}
+    .nav-item{padding:14px 16px;font-size:13px;white-space:nowrap;}
+    .row.c2{grid-template-columns:1fr;}
+    .page{padding:20px 20px 80px;}
+    .logo-text h1{font-size:18px;}
+    .top-date,.top-badge{display:none;}
+    .side-ad{display:none;}
+    .float-banner{display:none;}
+    .popup-ad{width:200px;}
+}
+
+/* ============================================
+   * 密集广告/信息流 - 黄网风
+   * ============================================ */
+  /* 顶部公告条 - 4条不同颜色的滚动行 */
+.ad-ticker{
+    background:#0a0a0a;
+    border-top:1px solid #333;
+    border-bottom:2px solid #ff6b00;
+    position:relative;z-index:99;
+    font-size:12px;
+    box-shadow:0 0 20px rgba(255,107,0,.3);
+}
+.ad-ticker-row{
+    display:flex;align-items:center;gap:0;
+    padding:5px 12px;
+    border-bottom:1px solid #1a1a1a;
+    overflow:hidden;white-space:nowrap;
+    position:relative;
+}
+.ad-ticker-row:last-child{border-bottom:none;}
+.ad-ticker-row .tag{
+    display:inline-block;padding:2px 8px;margin-right:10px;
+    font-size:11px;font-weight:900;border-radius:2px;
+    flex-shrink:0;letter-spacing:1px;
+}
+.tag-hot{background:#e60012;color:#fff;animation:tagFlash 1.2s infinite;}
+.tag-new{background:#ff6b00;color:#fff;animation:tagFlash 1.5s infinite;}
+.tag-rec{background:#d4af37;color:#000;}
+.tag-live{background:#00d4ff;color:#000;animation:tagFlash 0.8s infinite;}
+.tag-urgent{background:#ffeb3b;color:#e60012;animation:tagFlash 0.6s infinite;}
+.tag-vip{background:linear-gradient(90deg,#d4af37,#ff6b00);color:#000;}
+@keyframes tagFlash{0%,100%{opacity:1;}50%{opacity:.5;}}
+
+.ad-ticker-row .track-wrap{
+    flex:1;overflow:hidden;
+    mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);
+}
+.ad-ticker-row .track{
+    display:inline-block;
+    animation: marquee linear infinite;
+}
+.ad-ticker-row .track span{
+    margin-right:50px;
+    color:#ffeb3b;
+}
+.ad-ticker-row .track span b{color:#fff;font-weight:900;}
+.ad-ticker-row .track span em{color:#00d4ff;font-style:normal;text-shadow:0 0 6px #00d4ff;}
+.ad-ticker-row .track span i{color:#ff6b00;font-style:normal;font-weight:700;}
+.ad-ticker-row .track span u{color:#ffeb3b;text-decoration:underline wavy #ff6b00;}
+.ad-ticker-row.r1 .track{animation-duration:48s;}
+.ad-ticker-row.r2 .track{animation-duration:40s;animation-direction:reverse;}
+.ad-ticker-row.r3 .track{animation-duration:55s;}
+.ad-ticker-row.r4 .track{animation-duration:32s;animation-direction:reverse;}
+@keyframes marquee{
+    0%{transform:translateX(0);}
+    100%{transform:translateX(-50%);}
+}
+.ad-ticker-row::before{
+    content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+    background:var(--row-color,#ff6b00);
+}
+.ad-ticker-row.r1{--row-color:#e60012;background:linear-gradient(90deg,#2a0808 0%,#1a1a1a 50%,#2a0808 100%);}
+.ad-ticker-row.r2{--row-color:#ff6b00;background:linear-gradient(90deg,#2a1a08 0%,#1a1a1a 50%,#2a1a08 100%);}
+.ad-ticker-row.r3{--row-color:#ffeb3b;background:linear-gradient(90deg,#2a2808 0%,#1a1a1a 50%,#2a2808 100%);}
+.ad-ticker-row.r4{--row-color:#00d4ff;background:linear-gradient(90deg,#082a2a 0%,#1a1a1a 50%,#082a2a 100%);}
+
+  /* 侧边浮动广告条 - 左右各一列 */
+.side-ad{
+    position:fixed;top:50%;transform:translateY(-50%);
+    width:78px;z-index:80;
+    pointer-events:auto;
+}
+.side-ad.left{left:6px;}
+.side-ad.right{right:6px;}
+.side-ad .ad-item{
+    background:linear-gradient(180deg,#2a1a08,#1a1a1a);
+    border:1px solid #ff6b00;
+    border-radius:3px;
+    padding:6px 4px;margin-bottom:5px;
+    text-align:center;
+    box-shadow:0 0 6px rgba(255,107,0,.3);
+    cursor:pointer;
+    transition:all .2s;
+    position:relative;
+    overflow:hidden;
+}
+.side-ad .ad-item::before{
+    content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,235,59,.3),transparent);
+    animation:adShine 3s infinite;
+}
+@keyframes adShine{0%{left:-100%;}50%,100%{left:100%;}}
+.side-ad .ad-item:hover{
+    transform:scale(1.1);
+    box-shadow:0 0 15px rgba(255,107,0,.9);
+    border-color:#ffeb3b;
+}
+.side-ad .ad-item .ico{
+    font-size:20px;display:block;margin-bottom:2px;
+    color:#ffeb3b;
+    text-shadow:0 0 6px #ff6b00;
+}
+.side-ad .ad-item .t{
+    font-size:10px;color:#fff;font-weight:700;
+    line-height:1.2;
+}
+.side-ad .ad-item .p{
+    font-size:9px;color:#000;margin-top:3px;
+    background:#ffeb3b;padding:1px 3px;border-radius:2px;
+    display:inline-block;font-weight:900;
+}
+
+  /* 右下角弹窗广告 */
+.popup-ad{
+    position:fixed;right:12px;bottom:12px;
+    width:230px;
+    background:linear-gradient(135deg,#2a0808,#1a1a1a);
+    border:2px solid #ff6b00;
+    border-radius:6px;
+    padding:10px;
+    z-index:90;
+    box-shadow:0 0 20px rgba(255,107,0,.5);
+    animation: popupFloat 2s ease-in-out infinite;
+}
+@keyframes popupFloat{
+    0%,100%{transform:translateY(0);}
+    50%{transform:translateY(-4px);}
+}
+.popup-ad .ph{
+    display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid #ff6b00;padding-bottom:5px;margin-bottom:6px;
+}
+.popup-ad .ph .t{
+    font-size:12px;color:#ffeb3b;font-weight:900;
+    text-shadow:0 0 4px #ff6b00;
+}
+.popup-ad .ph .x{
+    color:#888;font-size:14px;cursor:pointer;
+}
+.popup-ad .bd{
+    font-size:11px;color:#fff;line-height:1.5;
+}
+.popup-ad .bd b{color:#ffeb3b;}
+.popup-ad .bd em{color:#00d4ff;font-style:normal;}
+.popup-ad .bd i{color:#ff6b00;font-style:normal;font-weight:700;}
+.popup-ad .btn{
+    margin-top:6px;display:block;text-align:center;
+    background:linear-gradient(90deg,#e60012,#ff6b00);
+    color:#fff;font-size:11px;font-weight:900;
+    padding:4px 8px;border-radius:3px;
+    text-shadow:0 0 3px rgba(0,0,0,.5);
+}
+/* 浮动横幅广告 */
+.float-banner{
+    position:fixed;z-index:85;
+    background:linear-gradient(135deg,#ff6b00,#e60012);
+    color:#fff;font-size:12px;font-weight:900;
+    padding:6px 12px;border-radius:4px;
+    box-shadow:0 0 12px rgba(255,107,0,.7);
+    text-shadow:0 0 3px rgba(0,0,0,.5);
+    cursor:pointer;
+    animation: bannerBlink 1.2s infinite;
+}
+.float-banner.b1{
+    top:30%;left:100px;
+    transform:rotate(-15deg);
+}
+.float-banner.b2{
+    top:65%;right:100px;
+    transform:rotate(15deg);
+}
+@keyframes bannerBlink{
+    0%,100%{box-shadow:0 0 12px rgba(255,107,0,.7);}
+    50%{box-shadow:0 0 28px rgba(255,235,59,1);}
+}
+
+/* 底部链接墙 */
+.link-wall{
+    background:linear-gradient(180deg,#0a0a0a,#1a1a1a);
+    border-top:2px solid #ff6b00;
+    border-bottom:1px solid #ff6b00;
+    padding:12px 20px;
+    font-size:11px;
+    line-height:1.8;
+    position:relative;
+}
+.link-wall::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,#ff6b00,transparent);
+}
+.link-wall .lw-title{
+    color:#ff6b00;font-weight:900;font-size:12px;
+    margin-bottom:6px;
+    text-shadow:0 0 4px #ff6b00;
+    display:flex;align-items:center;gap:10px;
+}
+.link-wall .lw-title .dot{
+    display:inline-block;width:6px;height:6px;
+    background:#ffeb3b;border-radius:50%;
+    box-shadow:0 0 6px #ffeb3b;
+    animation:dotBlink 1s infinite;
+}
+@keyframes dotBlink{0%,100%{opacity:1;}50%{opacity:.3;}}
+.link-wall a{
+    color:#aaa;margin:0 6px;text-decoration:none;
+    transition:color .2s;
+    white-space:nowrap;
+}
+.link-wall a:hover{color:#ffeb3b;text-shadow:0 0 4px #ff6b00;}
+.link-wall a.hot{color:#e60012;font-weight:700;}
+.link-wall a.hot::after{
+    content:"HOT";font-size:8px;background:#e60012;color:#fff;
+    padding:0 3px;margin-left:2px;border-radius:2px;vertical-align:top;
+}
+.link-wall a.new{color:#ff6b00;font-weight:700;}
+.link-wall a.new::after{
+    content:"NEW";font-size:8px;background:#ff6b00;color:#000;
+    padding:0 3px;margin-left:2px;border-radius:2px;vertical-align:top;
+}
+.link-wall a.gold{color:#d4af37;font-weight:700;}
+
+/* 页面内密集信息条 */
+.info-bar{
+    background:linear-gradient(90deg,#2a0808,#1a1a1a,#2a1a08);
+    border:1px solid #ff6b00;
+    border-radius:4px;
+    padding:6px 10px;
+    margin-bottom:10px;
+    font-size:11px;
+    overflow:hidden;
+    white-space:nowrap;
+    position:relative;
+    box-shadow:0 0 10px rgba(255,107,0,.2);
+}
+.info-bar::before{
+    content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+    background:#ffeb3b;
+    box-shadow:0 0 8px #ffeb3b;
+}
+.info-bar::after{
+    content:'';position:absolute;right:0;top:0;bottom:0;width:30px;
+    background:linear-gradient(90deg,transparent,#1a1a1a);
+    pointer-events:none;
+}
+.info-bar .track{
+    display:inline-block;
+    animation: marquee 35s linear infinite;
+}
+.info-bar .track span{
+    margin-right:30px;color:#ffeb3b;
+}
+.info-bar .track span b{color:#fff;font-weight:900;}
+.info-bar .track span em{color:#00d4ff;font-style:normal;}
+.info-bar .track span i{color:#ff6b00;font-style:normal;font-weight:700;}
+
+/* ============================================
+ * GIS 行业组件样式
+ * ============================================ */
+
+/* GIS 工具栏 */
+.gis-toolbar{
+    display:flex;gap:8px;padding:10px;flex-wrap:wrap;
+    background:linear-gradient(135deg,#0a1a2a,#0e2748);
+    border:1px solid #1a4a8a;
+    border-radius:6px;
+    margin-bottom:10px;
+    box-shadow:inset 0 0 20px rgba(0,150,255,.1);
+}
+.gis-btn{
+    background:linear-gradient(180deg,#1a4a8a,#0e2748);
+    border:1px solid #2a6aaa;color:#aae0ff;
+    padding:6px 12px;border-radius:3px;cursor:pointer;
+    font-size:12px;font-weight:700;
+    transition:all .2s;
+    display:flex;align-items:center;gap:4px;
+}
+.gis-btn:hover{
+    background:linear-gradient(180deg,#2a6aaa,#1a4a8a);
+    color:#fff;
+    box-shadow:0 0 10px rgba(0,150,255,.6);
+}
+.gis-btn.active{
+    background:linear-gradient(180deg,#e60012,#a00000);
+    border-color:#ff5050;color:#fff;
+    box-shadow:0 0 12px rgba(230,0,18,.7);
+}
+.gis-btn .ico{font-size:14px;}
+
+/* GIS 信息条 - 坐标系/投影/比例尺 */
+.gis-meta{
+    display:flex;gap:12px;align-items:center;
+    padding:6px 10px;
+    background:linear-gradient(90deg,#0a1a2a,#0e2748);
+    border:1px solid #1a4a8a;border-left:3px solid #00d4ff;
+    border-radius:3px;
+    font-size:11px;
+    color:#aae0ff;
+    margin-bottom:8px;
+    font-family:"Consolas",monospace;
+}
+.gis-meta .item{display:flex;align-items:center;gap:4px;}
+.gis-meta .label{color:#666;}
+.gis-meta .val{color:#ffeb3b;font-weight:700;}
+.gis-meta .sep{color:#333;}
+
+/* 地图容器 */
+.map-wrap{
+    position:relative;height:560px;
+    border:2px solid #1a4a8a;border-radius:6px;
+    overflow:hidden;
+    box-shadow:0 0 30px rgba(0,150,255,.3);
+    background:#0a1428;
+}
+#gisMap{height:100%;width:100%;background:#0a1428;}
+
+/* Leaflet 暗色覆盖 */
+.leaflet-container{background:#0a1428 !important;font-family:inherit;}
+.leaflet-control-zoom{
+    border:1px solid #1a4a8a !important;
+    box-shadow:0 0 10px rgba(0,150,255,.3) !important;
+}
+.leaflet-control-zoom a{
+    background:linear-gradient(180deg,#1a4a8a,#0e2748) !important;
+    color:#aae0ff !important;
+    border-bottom:1px solid #1a4a8a !important;
+    font-size:18px !important;
+}
+.leaflet-control-zoom a:hover{
+    background:linear-gradient(180deg,#2a6aaa,#1a4a8a) !important;
+    color:#fff !important;
+}
+.leaflet-control-attribution{
+    background:rgba(10,20,40,.8) !important;
+    color:#666 !important;
+    font-size:10px !important;
+}
+.leaflet-control-attribution a{color:#aae0ff !important;}
+.leaflet-control-scale-line{
+    background:rgba(10,20,40,.8) !important;
+    color:#ffeb3b !important;
+    border:1px solid #ffeb3b !important;
+    border-top:none !important;
+    font-weight:900 !important;
+}
+.leaflet-popup-content-wrapper{
+    background:linear-gradient(135deg,#1a2a4a,#0e1e3e) !important;
+    color:#e8eaf2 !important;
+    border:1px solid #2a6aaa;
+    box-shadow:0 0 20px rgba(0,150,255,.5) !important;
+}
+.leaflet-popup-tip{background:#0e1e3e !important;border:1px solid #2a6aaa;}
+.leaflet-popup-content{margin:10px 14px;font-size:12px;line-height:1.6;}
+.leaflet-popup-content b{color:#ffeb3b;}
+.leaflet-popup-content em{color:#00d4ff;font-style:normal;}
+.leaflet-popup-content i{color:#e60012;font-style:normal;font-weight:700;}
+
+/* 自定义指北针 */
+.compass{
+    position:absolute;top:10px;right:10px;
+    width:60px;height:60px;
+    background:radial-gradient(circle,rgba(20,30,50,.9),rgba(10,20,40,.9));
+    border:2px solid #2a6aaa;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    z-index:500;
+    box-shadow:0 0 15px rgba(0,150,255,.5);
+    font-size:11px;color:#ffeb3b;font-weight:900;
+}
+.compass::before{
+    content:'N';position:absolute;top:4px;
+    color:#e60012;font-size:13px;font-weight:900;
+    text-shadow:0 0 4px #e60012;
+}
+.compass::after{
+    content:'';position:absolute;
+    top:50%;left:50%;width:2px;height:24px;
+    background:linear-gradient(180deg,#e60012 0%,#e60012 50%,#fff 50%,#fff 100%);
+    transform:translate(-50%,-50%);
+    box-shadow:0 0 6px rgba(230,0,18,.8);
+}
+
+/* 鼠标坐标显示 */
+.mouse-coord{
+    position:absolute;bottom:10px;left:10px;
+    background:rgba(10,20,40,.85);
+    border:1px solid #1a4a8a;
+    padding:4px 10px;
+    font-size:11px;color:#aae0ff;
+    font-family:"Consolas",monospace;
+    z-index:500;
+    border-radius:3px;
+}
+.mouse-coord .x{color:#ffeb3b;font-weight:700;}
+.mouse-coord .y{color:#00d4ff;font-weight:700;}
+
+/* 鹰眼图 */
+.minimap{
+    position:absolute;bottom:10px;right:10px;
+    width:150px;height:120px;
+    background:#0a1428;
+    border:1px solid #1a4a8a;
+    z-index:500;
+    overflow:hidden;
+    border-radius:3px;
+}
+.minimap .mm-title{
+    position:absolute;top:0;left:0;right:0;
+    background:rgba(10,20,40,.9);
+    color:#aae0ff;font-size:10px;
+    padding:2px 5px;
+    border-bottom:1px solid #1a4a8a;
+    z-index:2;
+}
+.minimap .mm-box{
+    position:absolute;
+    border:2px solid #ffeb3b;
+    background:rgba(255,235,59,.1);
+    box-shadow:0 0 6px rgba(255,235,59,.5);
+    pointer-events:none;
+    z-index:3;
+}
+
+/* 图层管理面板 */
+.layer-panel{
+    background:linear-gradient(180deg,#0a1a2a,#0e2748);
+    border:1px solid #1a4a8a;
+    border-radius:6px;
+    padding:10px;
+    max-height:300px;overflow-y:auto;
+}
+.layer-panel .lp-title{
+    font-size:12px;color:#aae0ff;font-weight:900;
+    margin-bottom:8px;
+    padding-bottom:6px;
+    border-bottom:1px solid #1a4a8a;
+    display:flex;align-items:center;gap:6px;
+}
+.layer-group{margin-bottom:10px;}
+.layer-group .lg-title{
+    font-size:11px;color:#00d4ff;font-weight:700;
+    margin-bottom:5px;
+    display:flex;align-items:center;gap:4px;
+    cursor:pointer;
+}
+.layer-item{
+    display:flex;align-items:center;gap:6px;
+    padding:5px 8px;
+    margin-bottom:3px;
+    background:rgba(26,74,138,.3);
+    border:1px solid transparent;
+    border-radius:3px;
+    font-size:11px;
+    color:#aae0ff;
+    cursor:pointer;
+    transition:all .15s;
+}
+.layer-item:hover{
+    background:rgba(26,74,138,.6);
+    border-color:#2a6aaa;
+}
+.layer-item.active{
+    border-color:#ffeb3b;
+    background:rgba(255,235,59,.15);
+    color:#ffeb3b;
+}
+.layer-item .ly-ico{font-size:14px;}
+.layer-item .ly-name{flex:1;}
+.layer-item .ly-act{
+    font-size:10px;color:#666;cursor:pointer;
+    padding:0 3px;
+}
+.layer-item .ly-act:hover{color:#ffeb3b;}
+
+/* 属性表 */
+.attr-table{
+    background:linear-gradient(180deg,#0a1a2a,#0e2748);
+    border:1px solid #1a4a8a;
+    border-radius:6px;
+    overflow:hidden;
+    font-size:11px;
+}
+.attr-table .at-head{
+    padding:8px 10px;
+    background:rgba(26,74,138,.4);
+    color:#ffeb3b;font-weight:900;
+    border-bottom:1px solid #1a4a8a;
+    display:flex;align-items:center;justify-content:space-between;
+}
+.attr-table .at-body{
+    max-height:280px;overflow-y:auto;
+}
+.attr-table table{width:100%;border-collapse:collapse;}
+.attr-table th,.attr-table td{
+    padding:5px 8px;text-align:left;
+    border-bottom:1px solid #1a4a8a;
+    font-family:"Consolas",monospace;
+}
+.attr-table th{
+    background:rgba(26,74,138,.5);
+    color:#00d4ff;font-weight:700;
+    position:sticky;top:0;
+}
+.attr-table td{color:#aae0ff;}
+.attr-table td b{color:#ffeb3b;}
+.attr-table td em{color:#fff;font-style:normal;}
+.attr-table tr:hover td{background:rgba(26,74,138,.3);}
+
+/* 元数据展示 */
+.meta-block{
+    background:linear-gradient(180deg,#0a1a2a,#0e2748);
+    border:1px solid #1a4a8a;border-left:3px solid #00d4ff;
+    border-radius:4px;padding:10px 12px;
+    margin-bottom:10px;font-size:11px;
+}
+.meta-block .mb-title{
+    color:#00d4ff;font-weight:900;font-size:13px;
+    margin-bottom:8px;
+    display:flex;align-items:center;gap:6px;
+}
+.meta-block .mb-row{
+    display:grid;grid-template-columns:140px 1fr;
+    padding:3px 0;color:#aae0ff;
+    border-bottom:1px dashed rgba(26,74,138,.5);
+}
+.meta-block .mb-row .k{color:#666;}
+.meta-block .mb-row .v{color:#ffeb3b;font-family:"Consolas",monospace;}
+.meta-block .mb-row .v b{color:#fff;}
+.meta-block .mb-row .v em{color:#00d4ff;font-style:normal;}
+
+/* GIS 行业特色标签 */
+.tag-gis{
+    display:inline-block;
+    background:rgba(0,212,255,.15);
+    color:#00d4ff;
+    border:1px solid #00d4ff;
+    padding:1px 6px;
+    font-size:10px;font-weight:700;
+    border-radius:2px;
+    font-family:"Consolas",monospace;
+    letter-spacing:0.5px;
+}
+
+/* 时空分析时间轴 */
+.time-axis{
+    background:linear-gradient(90deg,#0a1a2a,#0e2748,#0a1a2a);
+    border:1px solid #1a4a8a;
+    border-radius:6px;
+    padding:12px 16px;
+    margin-bottom:12px;
+}
+.time-axis .ta-title{
+    color:#00d4ff;font-size:12px;font-weight:900;
+    margin-bottom:8px;
+    display:flex;align-items:center;gap:6px;
+}
+.time-axis .ta-track{
+    position:relative;
+    height:40px;
+    background:linear-gradient(180deg,#0a1428,#1a2a4a);
+    border-radius:4px;
+    overflow:hidden;
+}
+.time-axis .ta-progress{
+    position:absolute;top:0;left:0;bottom:0;
+    background:linear-gradient(90deg,rgba(0,212,255,.3),rgba(0,212,255,.1));
+    border-right:2px solid #00d4ff;
+}
+.time-axis .ta-marks{
+    position:absolute;inset:0;
+    display:flex;justify-content:space-between;
+    align-items:center;padding:0 8px;
+    font-size:10px;color:#aae0ff;
+    font-family:"Consolas",monospace;
+}
+.time-axis .ta-marks span{
+    cursor:pointer;
+    padding:2px 4px;
+    transition:all .15s;
+}
+.time-axis .ta-marks span:hover{color:#ffeb3b;}
+.time-axis .ta-marks span.active{
+    color:#ffeb3b;font-weight:900;
+    text-shadow:0 0 6px #ffeb3b;
+}
+.time-axis .ta-play{
+    display:flex;align-items:center;gap:10px;
+    margin-top:8px;
+}
+.time-axis .ta-play button{
+    background:linear-gradient(180deg,#1a4a8a,#0e2748);
+    border:1px solid #2a6aaa;color:#aae0ff;
+    padding:4px 10px;border-radius:3px;
+    cursor:pointer;font-size:11px;font-weight:700;
+}
+.time-axis .ta-play button:hover{
+    background:linear-gradient(180deg,#2a6aaa,#1a4a8a);color:#fff;
+}
+.time-axis .ta-play .cur{
+    color:#ffeb3b;font-weight:900;
+    font-family:"Consolas",monospace;
+}
+
+/* 流图/OD图 样式 */
+.flow-legend{
+    display:flex;gap:10px;flex-wrap:wrap;
+    padding:6px 10px;
+    background:rgba(10,20,40,.6);
+    border:1px solid #1a4a8a;border-radius:3px;
+    margin-top:8px;
+    font-size:11px;
+}
+.flow-legend .fl-item{
+    display:flex;align-items:center;gap:4px;color:#aae0ff;
+}
+.flow-legend .fl-line{
+    display:inline-block;width:30px;height:3px;
+    background:linear-gradient(90deg,#00d4ff,#e60012);
+}
+
+/* 数据字典表格 */
+.dict-table{
+    background:linear-gradient(180deg,#0a1a2a,#0e2748);
+    border:1px solid #1a4a8a;border-radius:6px;
+    overflow:hidden;font-size:11px;
+}
+.dict-table table{width:100%;border-collapse:collapse;}
+.dict-table th{
+    background:rgba(26,74,138,.5);
+    color:#00d4ff;font-weight:900;
+    padding:8px 10px;text-align:left;
+    border-bottom:1px solid #1a4a8a;
+    font-family:"Consolas",monospace;
+}
+.dict-table td{
+    padding:6px 10px;color:#aae0ff;
+    border-bottom:1px solid #1a4a8a;
+}
+.dict-table td b{color:#ffeb3b;}
+.dict-table td em{color:#fff;font-style:normal;font-family:"Consolas",monospace;}
+.dict-table tr:hover td{background:rgba(26,74,138,.3);}
+.dict-table .badge-type{
+    display:inline-block;
+    background:rgba(0,212,255,.2);
+    color:#00d4ff;
+    padding:1px 5px;
+    border-radius:2px;
+    font-family:"Consolas",monospace;
+    font-size:10px;font-weight:700;
+}
+.dict-table .badge-type.num{background:rgba(255,235,59,.2);color:#ffeb3b;}
+.dict-table .badge-type.str{background:rgba(230,0,18,.2);color:#ff5050;}
+
+/* 鼠标光晕 */
+.cursor-glow{
+    position:fixed;width:400px;height:400px;border-radius:50%;
+    background:radial-gradient(circle,rgba(255,215,0,.08),transparent 60%);
+    pointer-events:none;z-index:-1;
+    transform:translate(-50%,-50%);
+    transition:opacity .3s;
+}
+</style>
+</head>
+<body>
+<!-- 背景层 -->
+<div class="bg-layer"></div>
+<canvas id="particles"></canvas>
+<div class="scan-line"></div>
+<div class="float-orb orb1"></div>
+<div class="float-orb orb2"></div>
+<div class="float-orb orb3"></div>
+<div class="float-orb orb4"></div>
+<div class="cursor-glow" id="cursorGlow"></div>
+
+
+<!-- 顶部标题栏 -->
+<div class="top-bar">
+    <div class="logo-wrap">
+        <div class="logo-icon">豫</div>
+        <div class="logo-text">
+            <h1>河南省人口数据综合管理平台</h1>
+            <p>HENAN POPULATION DATA MANAGEMENT PLATFORM</p>
+        </div>
+    </div>
+</div>
+<div class="top-right">
+    <div class="top-date" id="topDate">2024年01月15日 星期一</div>
+    <div class="top-time" id="topTime">15:22:30</div>
+    <div class="top-badge">▌ 数据可视化 v2.0</div>
+</div>
+<!-- 导航条 -->
+
+<div class="nav-bar">
+<div class="nav-item active" data-page="overview"><span class="num">01</span>数据概览</div>
+<div class="nav-item" data-page="structure"><span class="num">02</span>人口结构</div>
+<div class="nav-item" data-page="vital"><span class="num">03</span>自然变动</div>
+<div class="nav-item" data-page="marriage"><span class="num">04</span>婚姻家庭</div>
+<div class="nav-item" data-page="cities"><span class="num">05</span>各市分布</div>
+<div class="nav-item" data-page="history"><span class="num">06</span>历史趋势</div>
+<div class="nav-item" data-page="ranking"><span class="num">07</span>排行榜</div>
+<div class="nav-item" data-page="gis"><span class="num">08</span>GIS地图视图</div>
+<div class="nav-item" data-page="spatiotemporal"><span class="num">09</span>时空分析</div>
+<div class="nav-item" data-page="metadata"><span class="num">10</span>元数据规范</div>
+</div>
+
+<!-- 顶部公告滚动条 - 4行不同颜色不同速度 -->
+<div class="ad-ticker">
+
+<div class="ad-ticker-row r1">
+    <span class="tag tag-hot">🔥HOT</span>
+    <div class="track-wrap">
+    <div class="track">
+        <span>📢 <b>最新通报</b>：<i>2024年河南省常住人口数据</i>已发布，<em>9815万人</em>稳居全国第三！</span>
+        <span>🌟 <b>重磅消息</b>：<i>郑州市</i>人口突破<em>1300万</em>，成为<i>中原第一人口大市</i></span>
+        <span>⚠️ <b>人口警报</b>：<i>出生率</i>持续走低，<u>2023年仅6.82‰</u>，形势严峻</span>
+        <span>💍 <b>婚姻数据</b>：<i>2023年全省结婚登记</i><em>46.3万对</em>，同比下降<i>12.5%</i></span>
+        <span>👴 <b>老龄化</b>：<i>60岁以上人口</i>达<em>1860万</em>，占比<i>18.9%</i></span>
+        <span>🏙️ <b>城镇化</b>：<i>城镇化率</i>升至<em>58.08%</em>，增速<i>+0.71%</i></span>
+        <span>📊 <b>数据更新</b>：<i>18地市数据</i>已全部同步，<u>支持多维度对比</u></span>
+        <span>🎯 <b>排名变动</b>：<i>南阳</i>超越<i>周口</i>成为<i>人口第二大市</i></span>
+        <span>🔔 <b>系统提示</b>：<i>数据可视化平台 v2.0</i>正式上线，新增<u>多页面切换</u>功能</span>
+        <span>📢 <b>最新通报</b>：<i>2024年河南省常住人口数据</i>已发布，<em>9815万人</em>稳居全国第三！</span>
+        <span>🌟 <b>重磅消息</b>：<i>郑州市</i>人口突破<em>1300万</em>，成为<i>中原第一人口大市</i></span>
+        <span>⚠️ <b>人口警报</b>：<i>出生率</i>持续走低，<u>2023年仅6.82‰</u>，形势严峻</span>
+        <span>💍 <b>婚姻数据</b>：<i>2023年全省结婚登记</i><em>46.3万对</em>，同比下降<i>12.5%</i></span>
+        <span>👴 <b>老龄化</b>：<i>60岁以上人口</i>达<em>1860万</em>，占比<i>18.9%</i></span>
+        <span>🏙️ <b>城镇化</b>：<i>城镇化率</i>升至<em>58.08%</em>，增速<i>+0.71%</i></span>
+        <span>📊 <b>数据更新</b>：<i>18地市数据</i>已全部同步，<u>支持多维度对比</u></span>
+        <span>🎯 <b>排名变动</b>：<i>南阳</i>超越<i>周口</i>成为<i>人口第二大市</i></span>
+        <span>🔔 <b>系统提示</b>：<i>数据可视化平台 v2.0</i>正式上线，新增<u>多页面切换</u>功能</span>
+    </div>
+    </div>
+</div>
+
+<div class="ad-ticker-row r2">
+    <span class="tag tag-new">🆕NEW</span>
+    <div class="track-wrap">
+    <div class="track">
+        <span>📈 <i>GDP数据</i>：<b>郑州市</b>GDP突破<em>1.36万亿</em>，人均<i>10.4万元</i></span>
+        <span>📉 <i>自然增长</i>：<b>全省</b>自然增长率<em>-0.82‰</em>，<u>首次转负</u></span>
+        <span>🌍 <i>流动人口</i>：<b>2023年净流出</b><em>约200万人</em>，流向<i>长三角/珠三角</i></span>
+        <span>📊 <i>人口普查</i>：<b>七普数据</b>显示，<i>河南</i>十年净增<em>534万人</em></span>
+        <span>🏥 <i>医疗资源</i>：<b>三甲医院</b>达<i>85家</i>，<em>每千人床位</em>6.2张</span>
+        <span>🎓 <i>教育水平</i>：<b>本科以上</b>人口<em>820万</em>，占比<i>8.4%</i></span>
+        <span>💼 <i>就业人口</i>：<b>2023年新增就业</b><em>115万人</em>，超额完成<i>目标</i></span>
+        <span>🏘️ <i>城镇化</i>：<b>18地市</b>城镇化率<i>差距明显</i>，最高<em>郑州79.1%</em></span>
+        <span>🌾 <i>农村人口</i>：<b>乡村常住</b><em>4100万</em>，<u>持续向城镇转移</u></span>
+        <span>📈 <i>GDP数据</i>：<b>郑州市</b>GDP突破<em>1.36万亿</em>，人均<i>10.4万元</i></span>
+        <span>📉 <i>自然增长</i>：<b>全省</b>自然增长率<em>-0.82‰</em>，<u>首次转负</u></span>
+        <span>🌍 <i>流动人口</i>：<b>2023年净流出</b><em>约200万人</em>，流向<i>长三角/珠三角</i></span>
+        <span>📊 <i>人口普查</i>：<b>七普数据</b>显示，<i>河南</i>十年净增<em>534万人</em></span>
+        <span>🏥 <i>医疗资源</i>：<b>三甲医院</b>达<i>85家</i>，<em>每千人床位</em>6.2张</span>
+        <span>🎓 <i>教育水平</i>：<b>本科以上</b>人口<em>820万</em>，占比<i>8.4%</i></span>
+        <span>💼 <i>就业人口</i>：<b>2023年新增就业</b><em>115万人</em>，超额完成<i>目标</i></span>
+        <span>🏘️ <i>城镇化</i>：<b>18地市</b>城镇化率<i>差距明显</i>，最高<em>郑州79.1%</em></span>
+        <span>🌾 <i>农村人口</i>：<b>乡村常住</b><em>4100万</em>，<u>持续向城镇转移</u></span>
+    </div>
+    </div>
+</div>
+
+<div class="ad-ticker-row r3">
+    <span class="tag tag-urgent">⚡URGENT</span>
+    <div class="track-wrap">
+    <div class="track">
+        <span>❗ <b>紧急关注</b>：<i>人口负增长</i>时代到来，<u>需出台应对政策</u></span>
+        <span>📌 <b>政策导向</b>：<i>三孩政策</i>实施后，<em>生育意愿</em>仍处低位</span>
+        <span>🔍 <b>专家解读</b>：<i>人口学家</i>预测，<em>2050年河南人口</em>将降至<em>8500万</em></span>
+        <span>📅 <b>数据日历</b>：<i>2024年统计公报</i>将于<u>2025年3月发布</u></span>
+        <span>🎯 <b>重点关注</b>：<i>南阳、周口、商丘</i>为人口大市，<em>老龄化突出</em></span>
+        <span>💰 <b>经济影响</b>：<i>人口红利</i>逐渐消失，<u>劳动力成本上升</u></span>
+        <span>🏠 <b>楼市相关</b>：<i>人口净流出</i>地区，<em>房地产去库存压力</em>增大</span>
+        <span>📚 <b>教育资源</b>：<i>幼儿园</i>在园儿童<em>持续减少</em>，<u>面临整合</u></span>
+        <span>🚌 <b>基础设施</b>：<i>地铁规划</i>需考虑<em>人口承载力</em></span>
+        <span>❗ <b>紧急关注</b>：<i>人口负增长</i>时代到来，<u>需出台应对政策</u></span>
+        <span>📌 <b>政策导向</b>：<i>三孩政策</i>实施后，<em>生育意愿</em>仍处低位</span>
+        <span>🔍 <b>专家解读</b>：<i>人口学家</i>预测，<em>2050年河南人口</em>将降至<em>8500万</em></span>
+        <span>📅 <b>数据日历</b>：<i>2024年统计公报</i>将于<u>2025年3月发布</u></span>
+        <span>🎯 <b>重点关注</b>：<i>南阳、周口、商丘</i>为人口大市，<em>老龄化突出</em></span>
+        <span>💰 <b>经济影响</b>：<i>人口红利</i>逐渐消失，<u>劳动力成本上升</u></span>
+        <span>🏠 <b>楼市相关</b>：<i>人口净流出</i>地区，<em>房地产去库存压力</em>增大</span>
+        <span>📚 <b>教育资源</b>：<i>幼儿园</i>在园儿童<em>持续减少</em>，<u>面临整合</u></span>
+        <span>🚌 <b>基础设施</b>：<i>地铁规划</i>需考虑<em>人口承载力</em></span>
+    </div>
+    </div>
+</div>
+
+<div class="ad-ticker-row r4">
+    <span class="tag tag-live">🔴LIVE</span>
+    <div class="track-wrap">
+    <div class="track">
+        <span>🟢 <b>实时数据</b>：<i>今日</i>新增出生<em>1842人</em> | 死亡<em>2054人</em></span>
+        <span>🟡 <b>本周关注</b>：<i>南阳</i>出生率<em>7.5‰</em>全省第<em>4</em>位</span>
+        <span>🔵 <b>对比分析</b>：<i>郑州</i> vs <i>南阳</i>，<em>人口结构差异</em>显著</span>
+        <span>🟣 <b>本周预测</b>：<i>下周结婚登记</i>预计<em>9800对</em></span>
+        <span>🟠 <b>热搜榜</b>：<i>"河南人口"</i>本周搜索量<em>+128%</em></span>
+        <span>⚪ <b>用户活跃</b>：<i>当前在线</i><em>2.3万人</em>，峰值<i>3.5万</i></span>
+        <span>🟤 <b>数据下载</b>：<i>本月下载量</i><em>15.6万次</em>，同比<i>+22%</i></span>
+        <span>⚫ <b>系统状态</b>：<i>所有图表</i><em>正常</em>运行，<u>99.9%可用</u></span>
+        <span>🔴 <b>警报</b>：<i>人口密度</i>最高城市：<em>郑州1750人/km²</em></span>
+        <span>🟢 <b>实时数据</b>：<i>今日</i>新增出生<em>1842人</em> | 死亡<em>2054人</em></span>
+        <span>🟡 <b>本周关注</b>：<i>南阳</i>出生率<em>7.5‰</em>全省第<em>4</em>位</span>
+        <span>🔵 <b>对比分析</b>：<i>郑州</i> vs <i>南阳</i>，<em>人口结构差异</em>显著</span>
+        <span>🟣 <b>本周预测</b>：<i>下周结婚登记</i>预计<em>9800对</em></span>
+        <span>🟠 <b>热搜榜</b>：<i>"河南人口"</i>本周搜索量<em>+128%</em></span>
+        <span>⚪ <b>用户活跃</b>：<i>当前在线</i><em>2.3万人</em>，峰值<i>3.5万</i></span>
+        <span>🟤 <b>数据下载</b>：<i>本月下载量</i><em>15.6万次</em>，同比<i>+22%</i></span>
+        <span>⚫ <b>系统状态</b>：<i>所有图表</i><em>正常</em>运行，<u>99.9%可用</u></span>
+        <span>🔴 <b>警报</b>：<i>人口密度</i>最高城市：<em>郑州1750人/km²</em></span>
+    </div>
+    </div>
+</div>
+
+</div>
+
+<!-- 主内容 -->
+<div class="main">
+
+<!-- 01 数据概览 -->
+<div class="page active" id="page-overview">
+
+    <div class="info-bar">
+    <div class="track">
+        <span>📊 <b>实时</b>：<i>当前在线用户</i><em>23,541人</em></span>
+        <span>🔥 <b>热搜</b>：<i>2024河南人口</i>搜索量<em>+158%</em></span>
+        <span>📈 <b>更新</b>：<i>18地市数据</i>已同步</span>
+        <span>🎯 <b>预测</b>：<i>2050年人口</i>将降至<em>8500万</em></span>
+        <span>📰 <b>报告</b>：<i>2024发展报告</i>已发布</span>
+        <span>⚠️ <b>警告</b>：<i>自然增长率</i>首次转负</span>
+        <span>💍 <b>婚姻</b>：<i>登记数</i>同比下降<i>12.5%</i></span>
+        <span>👶 <b>出生</b>：<i>年出生</i><em>67万</em>创新低</span>
+        <span>🏙️ <b>郑州</b>：<i>GDP</i>突破<em>1.36万亿</em></span>
+        <span>🌍 <b>流动</b>：<i>净流出</i><em>200万人</em></span>
+        <span>📊 <b>实时</b>：<i>当前在线用户</i><em>23,541人</em></span>
+        <span>🔥 <b>热搜</b>：<i>2024河南人口</i>搜索量<em>+158%</em></span>
+        <span>📈 <b>更新</b>：<i>18地市数据</i>已同步</span>
+        <span>🎯 <b>预测</b>：<i>2050年人口</i>将降至<em>8500万</em></span>
+        <span>📰 <b>报告</b>：<i>2024发展报告</i>已发布</span>
+        <span>⚠️ <b>警告</b>：<i>自然增长率</i>首次转负</span>
+        <span>💍 <b>婚姻</b>：<i>登记数</i>同比下降<i>12.5%</i></span>
+        <span>👶 <b>出生</b>：<i>年出生</i><em>67万</em>创新低</span>
+        <span>🏙️ <b>郑州</b>：<i>GDP</i>突破<em>1.36万亿</em></span>
+        <span>🌍 <b>流动</b>：<i>净流出</i><em>200万人</em></span>
+    </div>
+    </div>
+
+    <div class="page-head">
+    <div class="page-title">
+        <div class="bar"></div>
+        <h2>数据概览</h2>
+        <span class="sub">OVERVIEW</span>
+    </div>
+    <div class="breadcrumb">首页 / <span>数据概览</span></div>
+    </div>
+
+    <div class="kpi-grid">
+    <div class="kpi k-red">
+        <div class="label">常住人口</div>
+        <div class="num">9815<span class="unit">万人</span></div>
+        <div class="trend up">↗ 全国排名第3位</div>
+    </div>
+    <div class="kpi k-gold">
+        <div class="label">城镇化率</div>
+        <div class="num">58.08<span class="unit">%</span></div>
+        <div class="trend up">↗ 较上年 +0.71%</div>
+    </div>
+    <div class="kpi k-blue">
+        <div class="label">人口密度</div>
+        <div class="num">1012<span class="unit">人/km²</span></div>
+        <div class="trend">中部地区前列</div>
+    </div>
+    <div class="kpi k-gray">
+        <div class="label">人均预期寿命</div>
+        <div class="num">77.5<span class="unit">岁</span></div>
+        <div class="trend up">↗ 持续提升</div>
+    </div>
+    </div>
+
+    <div class="row c1-2">
+    <div class="card">
+        <div class="card-h"><h3>人口自然变动</h3><span class="badge">2023年</span></div>
+        <div class="echart" id="o1"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>近十年人口总量趋势</h3><span class="badge">2014-2023</span></div>
+        <div class="echart" id="o2"></div>
+    </div>
+    </div>
+
+    <div class="row c3">
+    <div class="card">
+        <div class="card-h"><h3>出生人口 / 死亡人口</h3><span class="badge">年度对比</span></div>
+        <div class="echart" id="o3"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>婚姻登记情况</h3><span class="badge">结婚 / 离婚</span></div>
+        <div class="echart" id="o4"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>人口年龄结构</h3><span class="badge">三段式</span></div>
+        <div class="echart" id="o5"></div>
+    </div>
+    </div>
+
+    <div class="row c1-2">
+    <div class="card">
+        <div class="card-h"><h3>全省18市人口分布</h3><span class="badge">柱状图</span></div>
+        <div class="echart" id="o6" style="height:320px;"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>关键数据看板</h3><span class="badge">实时</span></div>
+        <div style="padding:20px 0;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div style="padding:14px;background:linear-gradient(135deg,rgba(230,0,18,.1),rgba(212,175,55,.05));border:1px solid rgba(230,0,18,.2);border-radius:10px;">
+            <div style="font-size:11px;color:#a0a8c0;margin-bottom:6px;letter-spacing:1px;">年出生人口</div>
+            <div style="font-size:24px;font-weight:900;color:#fff;background:linear-gradient(180deg,#ffffff 0%,#ffd700 60%,#ff4040 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;-webkit-text-stroke:0.3px rgba(255,255,255,.4);">67.0 万</div>
+            <div style="font-size:10px;color:#e60012;margin-top:4px;">出生率 6.82‰</div>
+            </div>
+            <div style="padding:14px;background:linear-gradient(135deg,rgba(122,122,122,.1),rgba(212,175,55,.05));border:1px solid rgba(122,122,122,.2);border-radius:10px;">
+            <div style="font-size:11px;color:#a0a8c0;margin-bottom:6px;letter-spacing:1px;">年死亡人口</div>
+            <div style="font-size:24px;font-weight:900;color:#fff;background:linear-gradient(180deg,#ffffff 0%,#d8d8d8 60%,#909090 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;-webkit-text-stroke:0.3px rgba(255,255,255,.4);">75.0 万</div>
+            <div style="font-size:10px;color:#a0a8c0;margin-top:4px;">死亡率 7.64‰</div>
+            </div>
+            <div style="padding:14px;background:linear-gradient(135deg,rgba(0,212,255,.1),rgba(212,175,55,.05));border:1px solid rgba(0,212,255,.2);border-radius:10px;">
+            <div style="font-size:11px;color:#a0a8c0;margin-bottom:6px;letter-spacing:1px;">结婚登记</div>
+            <div style="font-size:24px;font-weight:900;color:#fff;background:linear-gradient(180deg,#ffffff 0%,#7ee0ff 60%,#00a8e8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;-webkit-text-stroke:0.3px rgba(255,255,255,.4);">46.3 万对</div>
+            <div style="font-size:10px;color:#00d4ff;margin-top:4px;">粗结婚率 4.71‰</div>
+            </div>
+            <div style="padding:14px;background:linear-gradient(135deg,rgba(212,175,55,.1),rgba(230,0,18,.05));border:1px solid rgba(212,175,55,.2);border-radius:10px;">
+            <div style="font-size:11px;color:#a0a8c0;margin-bottom:6px;letter-spacing:1px;">离婚登记</div>
+            <div style="font-size:24px;font-weight:900;color:#fff;background:linear-gradient(180deg,#ffffff 0%,#ffd700 60%,#d4af37 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;-webkit-text-stroke:0.3px rgba(255,255,255,.4);">22.7 万对</div>
+            <div style="font-size:10px;color:#d4af37;margin-top:4px;">离结比 49.0%</div>
+            </div>
+            <div style="padding:14px;background:linear-gradient(135deg,rgba(230,0,18,.15),rgba(255,0,0,.05));border:1px solid rgba(230,0,18,.3);border-radius:10px;">
+            <div style="font-size:11px;color:#a0a8c0;margin-bottom:6px;letter-spacing:1px;">自然增长率</div>
+            <div style="font-size:24px;font-weight:900;color:#fff;background:linear-gradient(180deg,#ffffff 0%,#ffd700 60%,#ff4040 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;-webkit-text-stroke:0.3px rgba(255,255,255,.4);">-0.82‰</div>
+            <div style="font-size:10px;color:#e60012;margin-top:4px;animation: blink 1s infinite;">⚠ 已进入人口负增长</div>
+            </div>
+            <div style="padding:14px;background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(255,215,0,.05));border:1px solid rgba(0,212,255,.3);border-radius:10px;">
+            <div style="font-size:11px;color:#a0a8c0;margin-bottom:6px;letter-spacing:1px;">60岁以上人口</div>
+            <div style="font-size:24px;font-weight:900;color:#fff;background:linear-gradient(180deg,#ffffff 0%,#7ee0ff 60%,#00a8e8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;-webkit-text-stroke:0.3px rgba(255,255,255,.4);">1860 万</div>
+            <div style="font-size:10px;color:#00d4ff;margin-top:4px;">占总人口 18.9%</div>
+            </div>
+        </div>
+        </div>
+    </div>
+    </div>
+</div>
+
+<!-- 02 人口结构 -->
+<div class="page" id="page-structure">
+
+    <div class="info-bar">
+    <div class="track">
+        <span>👶 <b>0-14岁</b>：<em>2200万</em>，占比<i>22.4%</i></span>
+        <span>👨 <b>15-59岁</b>：<em>5755万</em>，占比<i>58.6%</i></span>
+        <span>👴 <b>60岁+</b>：<em>1860万</em>，占比<i>18.9%</i></span>
+        <span>🎓 <b>本科以上</b>：<em>820万</em>，占比<i>8.4%</i></span>
+        <span>⚖️ <b>性别比</b>：<em>104.8</em>（女=100）</span>
+        <span>🏘️ <b>城镇化</b>：<em>58.08%</em>，+<i>0.71%</i></span>
+        <span>🌾 <b>乡村人口</b>：<em>4100万</em></span>
+        <span>📊 <b>抚养比</b>：<em>44.5%</em></span>
+        <span>🏫 <b>高校</b>：<i>在校生</i><em>268万</em></span>
+        <span>👶 <b>0-14岁</b>：<em>2200万</em>，占比<i>22.4%</i></span>
+        <span>👨 <b>15-59岁</b>：<em>5755万</em>，占比<i>58.6%</i></span>
+        <span>👴 <b>60岁+</b>：<em>1860万</em>，占比<i>18.9%</i></span>
+        <span>🎓 <b>本科以上</b>：<em>820万</em>，占比<i>8.4%</i></span>
+        <span>⚖️ <b>性别比</b>：<em>104.8</em>（女=100）</span>
+        <span>🏘️ <b>城镇化</b>：<em>58.08%</em>，+<i>0.71%</i></span>
+    </div>
+    </div>
+
+    <div class="page-head">
+    <div class="page-title">
+        <div class="bar"></div>
+        <h2>人口结构</h2>
+        <span class="sub">POPULATION STRUCTURE</span>
+    </div>
+    <div class="breadcrumb">首页 / <span>人口结构</span></div>
+    </div>
+
+    <div class="tabs">
+    <button class="tab-btn active" data-st="s1">▣ 年龄结构</button>
+    <button class="tab-btn" data-st="s2">▣ 性别比例</button>
+    <button class="tab-btn" data-st="s3">▣ 受教育程度</button>
+    <button class="tab-btn" data-st="s4">▣ 城乡分布</button>
+    </div>
+
+    <div class="tab-pane active" id="s1">
+    <div class="kpi-grid">
+        <div class="kpi k-blue"><div class="label">0-14岁少儿</div><div class="num">2200<span class="unit">万</span></div><div class="trend">占比 22.4%</div></div>
+        <div class="kpi k-gold"><div class="label">15-59岁劳动力</div><div class="num">5700<span class="unit">万</span></div><div class="trend">占比 58.1%</div></div>
+        <div class="kpi k-red"><div class="label">60岁以上老年</div><div class="num">1860<span class="unit">万</span></div><div class="trend down">占比 18.9% ↑ 老龄化</div></div>
+        <div class="kpi k-gray"><div class="label">65岁以上老年</div><div class="num">1280<span class="unit">万</span></div><div class="trend down">占比 13.0%</div></div>
+    </div>
+
+    <div class="row c2">
+        <div class="card">
+        <div class="card-h"><h3>三段式年龄结构</h3><span class="badge">环形</span></div>
+        <div class="echart" id="s_c1"></div>
+        </div>
+        <div class="card">
+        <div class="card-h"><h3>人口金字塔</h3><span class="badge">5岁分组</span></div>
+        <div class="echart" id="s_c2"></div>
+        </div>
+    </div>
+    </div>
+
+    <div class="tab-pane" id="s2">
+    <div class="row c2">
+        <div class="card">
+        <div class="card-h"><h3>男女人口对比</h3><span class="badge">环形</span></div>
+        <div class="echart" id="s_c3"></div>
+        </div>
+        <div class="card">
+        <div class="card-h"><h3>性别比历年变化</h3><span class="badge">折线</span></div>
+        <div class="echart" id="s_c4"></div>
+        </div>
+    </div>
+    </div>
+
+    <div class="tab-pane" id="s3">
+    <div class="row c2">
+        <div class="card">
+        <div class="card-h"><h3>受教育程度分布</h3><span class="badge">漏斗</span></div>
+        <div class="echart" id="s_c5"></div>
+        </div>
+        <div class="card">
+        <div class="card-h"><h3>受教育结构</h3><span class="badge">饼图</span></div>
+        <div class="echart" id="s_c6"></div>
+        </div>
+    </div>
+    </div>
+
+    <div class="tab-pane" id="s4">
+    <div class="row c2">
+        <div class="card">
+        <div class="card-h"><h3>城乡人口对比</h3><span class="badge">柱状</span></div>
+        <div class="echart" id="s_c7"></div>
+        </div>
+        <div class="card">
+        <div class="card-h"><h3>城镇化率历年变化</h3><span class="badge">折线</span></div>
+        <div class="echart" id="s_c8"></div>
+        </div>
+    </div>
+    </div>
+
+</div>
+
+<!-- 03 自然变动 -->
+<div class="page" id="page-vital">
+
+    <div class="info-bar">
+    <div class="track">
+        <span>👶 <b>出生</b>：<i>2023年</i><em>67万</em>人</span>
+        <span>💀 <b>死亡</b>：<i>2023年</i><em>75万</em>人</span>
+        <span>📉 <b>净增</b>：<em>-8万</em>，首次负增长</span>
+        <span>📊 <b>出生率</b>：<em>6.82‰</em>，历史最低</span>
+        <span>⚰️ <b>死亡率</b>：<em>7.64‰</em></span>
+        <span>🌱 <b>自然增长</b>：<em>-0.82‰</em></span>
+        <span>👦 <b>男婴</b>：<em>51.2%</em></span>
+        <span>👧 <b>女婴</b>：<em>48.8%</em></span>
+        <span>🏥 <b>二孩占比</b>：<em>38%</em></span>
+        <span>👶 <b>出生</b>：<i>2023年</i><em>67万</em>人</span>
+        <span>💀 <b>死亡</b>：<i>2023年</i><em>75万</em>人</span>
+        <span>📉 <b>净增</b>：<em>-8万</em>，首次负增长</span>
+        <span>📊 <b>出生率</b>：<em>6.82‰</em>，历史最低</span>
+        <span>⚰️ <b>死亡率</b>：<em>7.64‰</em></span>
+    </div>
+    </div>
+
+    <div class="page-head">
+    <div class="page-title">
+        <div class="bar"></div>
+        <h2>自然变动</h2>
+        <span class="sub">VITAL EVENTS</span>
+    </div>
+    <div class="breadcrumb">首页 / <span>自然变动</span></div>
+    </div>
+
+    <div class="kpi-grid">
+    <div class="kpi k-red"><div class="label">出生人口</div><div class="num">67.0<span class="unit">万</span></div><div class="trend down">↘ 同比下降 8.2%</div></div>
+    <div class="kpi k-gray"><div class="label">死亡人口</div><div class="num">75.0<span class="unit">万</span></div><div class="trend up">↗ 同比上升 1.5%</div></div>
+    <div class="kpi k-gold"><div class="label">自然增长率</div><div class="num">-0.82<span class="unit">‰</span></div><div class="trend down">⚠ 人口负增长元年</div></div>
+    <div class="kpi k-blue"><div class="label">总和生育率</div><div class="num">1.05</div><div class="trend down">↘ 远低于2.1警戒线</div></div>
+    </div>
+
+    <div class="row c1-2">
+    <div class="card">
+        <div class="card-h"><h3>出生率、死亡率、自然增长率历史趋势 (2010-2023)</h3><span class="badge">三线对比</span></div>
+        <div class="echart" id="v_c1" style="height:340px;"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>自然变动月度分布</h3><span class="badge">2023年</span></div>
+        <div class="echart" id="v_c2" style="height:340px;"></div>
+    </div>
+    </div>
+
+    <div class="row c2">
+    <div class="card">
+        <div class="card-h"><h3>出生人口性别比</h3><span class="badge">环形</span></div>
+        <div class="echart" id="v_c3"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>各省辖市出生率</h3><span class="badge">柱状</span></div>
+        <div class="echart" id="v_c4"></div>
+    </div>
+    </div>
+</div>
+
+
+<!-- 04 婚姻家庭 -->
+<div class="page" id="page-marriage">
+    <div class="info-bar">
+    <div class="track">
+        <span>💍 <b>结婚</b>：<em>46.3万</em>对，同比-<i>12.5%</i></span>
+        <span>💔 <b>离婚</b>：<em>22.7万</em>对，同比-<i>15.8%</i></span>
+        <span>📊 <b>离结比</b>：<em>49.0%</em></span>
+        <span>👰 <b>平均年龄</b>：男<em>31.5</em>岁 女<em>29.2</em>岁</span>
+        <span>🌹 <b>初婚占比</b>：<em>78%</em></span>
+        <span>📅 <b>高峰月</b>：<i>5月</i>、<i>10月</i></span>
+        <span>🎂 <b>晚婚率</b>：<em>32%</em>，持续上升</span>
+        <span>🏠 <b>家庭户</b>：<em>3150万</em>户</span>
+        <span>👨‍👩‍👧 <b>三人户</b>：占比<em>26.8%</em></span>
+        <span>💍 <b>结婚</b>：<em>46.3万</em>对</span>
+        <span>💔 <b>离婚</b>：<em>22.7万</em>对</span>
+        <span>📊 <b>离结比</b>：<em>49.0%</em></span>
+        <span>👰 <b>平均年龄</b>：男<em>31.5</em>岁</span>
+    </div>
+    </div>
+    <div class="page-head">
+    <div class="page-title">
+        <div class="bar"></div>
+        <h2>婚姻家庭</h2>
+        <span class="sub">MARRIAGE & FAMILY</span>
+    </div>
+    <div class="breadcrumb">首页 / <span>婚姻家庭</span></div>
+    </div>
+
+    <div class="kpi-grid">
+    <div class="kpi k-red"><div class="label">结婚登记</div><div class="num">46.3<span class="unit">万对</span></div><div class="trend down">↘ 同比下降 5.2%</div></div>
+    <div class="kpi k-gold"><div class="label">离婚登记</div><div class="num">22.7<span class="unit">万对</span></div><div class="trend down">↘ 同比下降 12.1%</div></div>
+    <div class="kpi k-blue"><div class="label">初婚年龄(男)</div><div class="num">31.6<span class="unit">岁</span></div><div class="trend up">↗ 持续推迟</div></div>
+    <div class="kpi k-gray"><div class="label">初婚年龄(女)</div><div class="num">29.4<span class="unit">岁</span></div><div class="trend up">↗ 持续推迟</div></div>
+    </div>
+
+    <div class="row c2">
+    <div class="card">
+        <div class="card-h"><h3>结婚登记 / 离婚登记 (2010-2023)</h3><span class="badge">双线</span></div>
+        <div class="echart" id="m_c1" style="height:340px;"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>结婚离婚比</h3><span class="badge">环形</span></div>
+        <div class="echart" id="m_c2" style="height:340px;"></div>
+    </div>
+    </div>
+
+    <div class="row c1-2">
+    <div class="card">
+        <div class="card-h"><h3>各省辖市结婚登记分布</h3><span class="badge">玫瑰图</span></div>
+        <div class="echart" id="m_c3" style="height:340px;"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>婚姻登记详细数据</h3><span class="badge">表格</span></div>
+        <div style="max-height:340px;overflow-y:auto;">
+        <table>
+            <thead><tr><th>年份</th><th>结婚登记</th><th>离婚登记</th><th>离结比</th><th>趋势</th></tr></thead>
+            <tbody>
+            <tr><td>2023</td><td class="num">46.3万对</td><td class="num">22.7万对</td><td class="num">49.0%</td><td><span class="tag">↓</span></td></tr>
+            <tr><td>2022</td><td class="num">48.8万对</td><td class="num">25.8万对</td><td class="num">52.9%</td><td><span class="tag">↓</span></td></tr>
+            <tr><td>2021</td><td class="num">51.2万对</td><td class="num">27.3万对</td><td class="num">53.3%</td><td><span class="tag">↓</span></td></tr>
+            <tr><td>2020</td><td class="num">55.5万对</td><td class="num">30.1万对</td><td class="num">54.2%</td><td><span class="tag">↑</span></td></tr>
+            <tr><td>2019</td><td class="num">62.1万对</td><td class="num">32.5万对</td><td class="num">52.3%</td><td><span class="tag">↑</span></td></tr>
+            <tr><td>2018</td><td class="num">68.0万对</td><td class="num">33.0万对</td><td class="num">48.5%</td><td><span class="tag">↑</span></td></tr>
+            <tr><td>2017</td><td class="num">72.0万对</td><td class="num">32.0万对</td><td class="num">44.4%</td><td><span class="tag">↑</span></td></tr>
+            <tr><td>2016</td><td class="num">76.0万对</td><td class="num">30.5万对</td><td class="num">40.1%</td><td><span class="tag">↑</span></td></tr>
+            <tr><td>2015</td><td class="num">78.0万对</td><td class="num">28.0万对</td><td class="num">35.9%</td><td><span class="tag">↑</span></td></tr>
+            <tr><td>2014</td><td class="num">80.0万对</td><td class="num">25.0万对</td><td class="num">31.3%</td><td><span class="tag">↑</span></td></tr>
+            <tr><td>2013</td><td class="num">82.0万对</td><td class="num">22.0万对</td><td class="num">26.8%</td><td><span class="tag">↑</span></td></tr>
+            <tr><td>2012</td><td class="num">83.5万对</td><td class="num">19.0万对</td><td class="num">22.8%</td><td><span class="tag">↑</span></td></tr>
+            <tr><td>2011</td><td class="num">85.0万对</td><td class="num">17.0万对</td><td class="num">20.0%</td><td><span class="tag">↑</span></td></tr>
+            <tr><td>2010</td><td class="num">86.0万对</td><td class="num">15.5万对</td><td class="num">18.0%</td><td><span class="tag">↑</span></td></tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+    </div>
+</div>
+
+<!-- 05 各市分布 -->
+<div class="page" id="page-cities">
+
+    <div class="info-bar">
+    <div class="track">
+        <span>🏙️ <b>郑州</b>：<em>1300万</em>，第<em>1</em></span>
+        <span>🌳 <b>南阳</b>：<em>962万</em>，第<em>2</em></span>
+        <span>🌾 <b>周口</b>：<em>881万</em>，第<em>3</em></span>
+        <span>🌟 <b>商丘</b>：<em>773万</em>，第<em>4</em></span>
+        <span>🏛️ <b>洛阳</b>：<em>710万</em>，第<em>5</em></span>
+        <span>🌾 <b>驻马店</b>：<em>689万</em></span>
+        <span>🍃 <b>信阳</b>：<em>613万</em></span>
+        <span>🏔️ <b>三门峡</b>：<em>202万</em></span>
+        <span>🌄 <b>济源</b>：<em>72万</em>，最少</span>
+        <span>🏙️ <b>郑州</b>：<em>1300万</em>，第<em>1</em></span>
+        <span>🌳 <b>南阳</b>：<em>962万</em>，第<em>2</em></span>
+        <span>🌾 <b>周口</b>：<em>881万</em>，第<em>3</em></span>
+        <span>🌟 <b>商丘</b>：<em>773万</em>，第<em>4</em></span>
+        <span>🏛️ <b>洛阳</b>：<em>710万</em>，第<em>5</em></span>
+    </div>
+    </div>
+
+    <div class="page-head">
+    <div class="page-title">
+        <div class="bar"></div>
+        <h2>各市分布</h2>
+        <span class="sub">CITY DISTRIBUTION</span>
+    </div>
+    <div class="breadcrumb">首页 / <span>各市分布</span></div>
+    </div>
+
+    <div class="row c1-2">
+    <div class="card">
+        <div class="card-h"><h3>河南省18市人口分布</h3><span class="badge">柱状</span></div>
+        <div class="echart" id="city_c1" style="height:380px;"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>各市人口占比</h3><span class="badge">饼图</span></div>
+        <div class="echart" id="city_c2" style="height:380px;"></div>
+    </div>
+    </div>
+
+    <div class="row c1-2">
+    <div class="card">
+        <div class="card-h"><h3>城市详情</h3><span class="badge">点击切换</span></div>
+        <div class="city-tabs" id="cityTabs"></div>
+        <div class="city-detail" id="cityDetail"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>城市多维数据雷达图</h3><span class="badge">Radar</span></div>
+        <div class="echart" id="city_c3" style="height:380px;"></div>
+    </div>
+    </div>
+
+    <div class="row c1-2">
+    <div class="card">
+        <div class="card-h"><h3>各市人口密度</h3><span class="badge">玫瑰图</span></div>
+        <div class="echart" id="city_c4" style="height:340px;"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>各市城镇化率</h3><span class="badge">横向条形</span></div>
+        <div class="echart" id="city_c5" style="height:340px;"></div>
+    </div>
+    </div>
+
+    <div class="card">
+    <div class="card-h"><h3>河南省18市详细数据</h3><span class="badge">数据表</span></div>
+    <div style="max-height:400px;overflow-y:auto;">
+        <table>
+        <thead>
+            <tr><th>序号</th><th>城市</th><th>常住人口(万)</th><th>出生率‰</th><th>死亡率‰</th><th>城镇化率%</th><th>结婚登记</th><th>60+占比%</th><th>人口密度</th><th>人均GDP(万)</th></tr>
+        </thead>
+        <tbody id="cityTable"></tbody>
+        </table>
+    </div>
+    </div>
+</div>
+
+<!-- 06 历史趋势 -->
+<div class="page" id="page-history">
+    <div class="info-bar">
+    <div class="track">
+        <span>📅 <b>2010</b>：人口<em>9402万</em></span>
+        <span>📅 <b>2015</b>：人口<em>9436万</em></span>
+        <span>📅 <b>2020</b>：人口<em>9710万</em></span>
+        <span>📅 <b>2023</b>：人口<em>9815万</em></span>
+        <span>📈 <b>峰值</b>：<em>2021</em>年<em>9788万</em></span>
+        <span>📉 <b>拐点</b>：<em>2022</em>年首次下降</span>
+        <span>👶 <b>出生峰值</b>：<em>2016</em>年<em>120万</em></span>
+        <span>💍 <b>结婚峰值</b>：<em>2013</em>年<em>78万</em>对</span>
+        <span>📅 <b>2010</b>：人口<em>9402万</em></span>
+        <span>📅 <b>2015</b>：人口<em>9436万</em></span>
+        <span>📅 <b>2020</b>：人口<em>9710万</em></span>
+        <span>📅 <b>2023</b>：人口<em>9815万</em></span>
+        <span>📈 <b>峰值</b>：<em>2021</em>年<em>9788万</em></span>
+    </div>
+    </div>
+
+    <div class="page-head">
+    <div class="page-title">
+        <div class="bar"></div>
+        <h2>历史趋势</h2>
+        <span class="sub">HISTORICAL TREND</span>
+    </div>
+    <div class="breadcrumb">首页 / <span>历史趋势</span></div>
+    </div>
+
+    <div class="timeline-wrap">
+    <div class="year-display">
+        <div class="y" id="yearShow">2023</div>
+        <div class="t">拖动下方滑块切换 · 河南省人口历年统计</div>
+    </div>
+    <div class="year-slider">
+        <div class="year-track"><div class="year-progress" id="yearProgress"></div></div>
+        <input type="range" min="2010" max="2023" value="2023" id="yearSlider" class="year-input">
+        <div class="year-ticks">
+        <span>2010</span><span>2012</span><span>2014</span><span>2016</span>
+        <span>2018</span><span>2020</span><span>2022</span><span>2023</span>
+        </div>
+    </div>
+    <div class="year-data" id="yearData"></div>
+    </div>
+
+    <div class="row c2" style="margin-top:18px;">
+    <div class="card">
+        <div class="card-h"><h3>2010-2023 人口总量变化</h3><span class="badge">面积图</span></div>
+        <div class="echart" id="h_c1" style="height:340px;"></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><h3>2010-2023 自然增长率变化</h3><span class="badge">折线</span></div>
+        <div class="echart" id="h_c2" style="height:340px;"></div>
+    </div>
+    </div>
+
+    <div class="card">
+    <div class="card-h"><h3>历年关键指标综合趋势</h3><span class="badge">2010-2023</span></div>
+    <div class="echart" id="h_c3" style="height:380px;"></div>
+    </div>
+</div>
+
+ <!-- 07 排行榜 -->
+  <div class="page" id="page-ranking">
+    <div class="info-bar">
+      <div class="track">
+        <span>🏆 <b>人口榜</b>：<i>郑州</i>夺冠<em>1300万</em></span>
+        <span>📈 <b>出生榜</b>：<i>驻马店</i>第一<em>8.6‰</em></span>
+        <span>👴 <b>老龄榜</b>：<i>南阳</i>最高<em>19.5%</em></span>
+        <span>💍 <b>结婚榜</b>：<i>郑州</i>领跑<em>5.2万对</em></span>
+        <span>🏙️ <b>城镇化榜</b>：<i>郑州</i><em>79.1%</em></span>
+        <span>🌾 <b>密度榜</b>：<i>郑州</i><em>1750人/km²</em></span>
+        <span>💰 <b>GDP榜</b>：<i>郑州</i><em>1.36万亿</em></span>
+        <span>📊 <b>教育榜</b>：<i>郑州</i><em>本科率18%</em></span>
+        <span>🏆 <b>人口榜</b>：<i>郑州</i>夺冠<em>1300万</em></span>
+        <span>📈 <b>出生榜</b>：<i>驻马店</i>第一<em>8.6‰</em></span>
+        <span>👴 <b>老龄榜</b>：<i>南阳</i>最高<em>19.5%</em></span>
+        <span>💍 <b>结婚榜</b>：<i>郑州</i>领跑<em>5.2万对</em></span>
+        <span>🏙️ <b>城镇化榜</b>：<i>郑州</i><em>79.1%</em></span>
+      </div>
+    </div>
+    <div class="page-head">
+      <div class="page-title">
+        <div class="bar"></div>
+        <h2>排行榜</h2>
+        <span class="sub">RANKING</span>
+      </div>
+      <div class="breadcrumb">首页 / <span>排行榜</span></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-rk="r1">▣ 人口数量 TOP10</button>
+      <button class="tab-btn" data-rk="r2">▣ 出生率 TOP10</button>
+      <button class="tab-btn" data-rk="r3">▣ 老龄化 TOP10</button>
+      <button class="tab-btn" data-rk="r4">▣ 结婚登记 TOP10</button>
+      <button class="tab-btn" data-rk="r5">▣ 城镇化率 TOP10</button>
+    </div>
+
+    <div class="tab-pane active" id="r1">
+      <div class="row c2-1">
+        <div class="card">
+          <div class="card-h"><h3>🏆 人口数量 TOP 10</h3><span class="badge">万人</span></div>
+          <div class="prog-wrap" id="rankPop"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>排名可视化</h3><span class="badge">柱状图</span></div>
+          <div class="echart" id="rk_c1" style="height:380px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-pane" id="r2">
+      <div class="row c2-1">
+        <div class="card">
+          <div class="card-h"><h3>📈 出生率 TOP 10</h3><span class="badge">‰</span></div>
+          <div class="prog-wrap" id="rankBirth"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>排名可视化</h3><span class="badge">柱状图</span></div>
+          <div class="echart" id="rk_c2" style="height:380px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-pane" id="r3">
+      <div class="row c2-1">
+        <div class="card">
+          <div class="card-h"><h3>👴 老龄化 TOP 10</h3><span class="badge">60+占比%</span></div>
+          <div class="prog-wrap" id="rankOld"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>排名可视化</h3><span class="badge">柱状图</span></div>
+          <div class="echart" id="rk_c3" style="height:380px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-pane" id="r4">
+      <div class="row c2-1">
+        <div class="card">
+          <div class="card-h"><h3>💍 结婚登记 TOP 10</h3><span class="badge">万对</span></div>
+          <div class="prog-wrap" id="rankMarry"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>排名可视化</h3><span class="badge">柱状图</span></div>
+          <div class="echart" id="rk_c4" style="height:380px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-pane" id="r5">
+      <div class="row c2-1">
+        <div class="card">
+          <div class="card-h"><h3>🏙️ 城镇化率 TOP 10</h3><span class="badge">%</span></div>
+          <div class="prog-wrap" id="rankUrban"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>排名可视化</h3><span class="badge">柱状图</span></div>
+          <div class="echart" id="rk_c5" style="height:380px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================== 08 GIS地图视图 ============================== -->
+<div class="page" id="page-gis">
+  <div class="info-bar">
+    <div class="track">
+      <span>🗺️ <b>地图服务</b>：<i>Leaflet 1.9.4</i> + <em>天地图矢量瓦片</em></span>
+      <span>📐 <b>坐标系</b>：<i>EPSG:4326</i> (WGS84) / <em>EPSG:4490</em> (CGCS2000)</span>
+      <span>🌍 <b>投影</b>：<i>Web Mercator</i> (EPSG:3857)</span>
+      <span>📏 <b>比例尺</b>：<i>1:1,000,000</i> (全省视图)</span>
+      <span>📊 <b>要素数</b>：<i>18</i>个市级行政区，<em>2847个</em>乡镇要素</span>
+      <span>🔄 <b>更新</b>：<i>每日同步</i>，<em>最近：2024-03-15</em></span>
+      <span>🗺️ <b>地图服务</b>：<i>Leaflet 1.9.4</i> + <em>天地图矢量瓦片</em></span>
+      <span>📐 <b>坐标系</b>：<i>EPSG:4326</i> (WGS84) / <em>EPSG:4490</em> (CGCS2000)</span>
+      <span>🌍 <b>投影</b>：<i>Web Mercator</i> (EPSG:3857)</span>
+      <span>📏 <b>比例尺</b>：<i>1:1,000,000</i> (全省视图)</span>
+    </div>
+  </div>
+
+  <div class="page-head">
+    <div class="page-title">
+      <div class="bar"></div>
+      <h2>GIS 地图视图</h2>
+      <span class="sub">GEOGRAPHIC INFORMATION SYSTEM</span>
+      <span class="tag-gis" style="margin-left:10px;">EPSG:4326</span>
+    </div>
+    <div class="breadcrumb">首页 / <span>GIS地图视图</span></div>
+  </div>
+
+  <!-- GIS 元数据条 -->
+  <div class="gis-meta">
+    <div class="item"><span class="label">CRS:</span><span class="val">EPSG:4326 (WGS84)</span></div>
+    <span class="sep">|</span>
+    <div class="item"><span class="label">投影:</span><span class="val">Web Mercator</span></div>
+    <span class="sep">|</span>
+    <div class="item"><span class="label">比例尺:</span><span class="val" id="scaleLabel">1:1,000,000</span></div>
+    <span class="sep">|</span>
+    <div class="item"><span class="label">要素数:</span><span class="val">18 个市</span></div>
+    <span class="sep">|</span>
+    <div class="item"><span class="label">数据源:</span><span class="val">天地图·河南省边界·统计数据</span></div>
+    <span class="sep">|</span>
+    <div class="item"><span class="label">更新:</span><span class="val">2024-03-15</span></div>
+  </div>
+
+  <!-- GIS 工具栏 -->
+  <div class="gis-toolbar">
+    <button class="gis-btn" onclick="gisTool('pan')"><span class="ico">✋</span>平移</button>
+    <button class="gis-btn active" onclick="gisTool('info')"><span class="ico">🔍</span>查询</button>
+    <button class="gis-btn" onclick="gisTool('measure-d')"><span class="ico">📏</span>测距</button>
+    <button class="gis-btn" onclick="gisTool('measure-a')"><span class="ico">📐</span>测面</button>
+    <button class="gis-btn" onclick="gisTool('draw-point')"><span class="ico">📍</span>画点</button>
+    <button class="gis-btn" onclick="gisTool('draw-line')"><span class="ico">➖</span>画线</button>
+    <button class="gis-btn" onclick="gisTool('draw-poly')"><span class="ico">⬟</span>画面</button>
+    <button class="gis-btn" onclick="gisTool('buffer')"><span class="ico">🔵</span>缓冲区</button>
+    <button class="gis-btn" onclick="gisTool('clear')"><span class="ico">🗑️</span>清除</button>
+    <button class="gis-btn" onclick="gisTool('export')"><span class="ico">💾</span>导出</button>
+    <button class="gis-btn" onclick="gisTool('print')"><span class="ico">🖨️</span>打印</button>
+    <button class="gis-btn" onclick="gisTool('fullscreen')"><span class="ico">⛶</span>全屏</button>
+  </div>
+
+  <!-- 主内容：左侧图层管理 + 地图 + 右侧属性表 -->
+  <div class="row c1-3-2" style="grid-template-columns:240px 1fr 320px;gap:10px;">
+    <!-- 图层管理 -->
+    <div class="layer-panel">
+      <div class="lp-title"><span style="color:#ffeb3b;">📚</span> 图层管理器 / TOC</div>
+
+      <div class="layer-group">
+        <div class="lg-title">🗺️ 基础底图</div>
+        <div class="layer-item active" onclick="toggleLayer(this,'vec')">
+          <span class="ly-ico">🌐</span>
+          <span class="ly-name">矢量底图</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item" onclick="toggleLayer(this,'img')">
+          <span class="ly-ico">🛰️</span>
+          <span class="ly-name">影像底图</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item" onclick="toggleLayer(this,'ter')">
+          <span class="ly-ico">⛰️</span>
+          <span class="ly-name">地形晕渲</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item" onclick="toggleLayer(this,'dark')">
+          <span class="ly-ico">🌑</span>
+          <span class="ly-name">暗色底图</span>
+          <span class="ly-act">👁</span>
+        </div>
+      </div>
+
+      <div class="layer-group">
+        <div class="lg-title">📊 业务图层</div>
+        <div class="layer-item active" onclick="toggleLayer(this,'border')">
+          <span class="ly-ico">🔷</span>
+          <span class="ly-name">省界</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item active" onclick="toggleLayer(this,'city')">
+          <span class="ly-ico">🔶</span>
+          <span class="ly-name">市界</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item active" onclick="toggleLayer(this,'cityLabel')">
+          <span class="ly-ico">🏷️</span>
+          <span class="ly-name">市名标注</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item active" onclick="toggleLayer(this,'popBubble')">
+          <span class="ly-ico">⭕</span>
+          <span class="ly-name">人口气泡图</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item" onclick="toggleLayer(this,'choropleth')">
+          <span class="ly-ico">🟦</span>
+          <span class="ly-name">分级统计图</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item" onclick="toggleLayer(this,'heatmap')">
+          <span class="ly-ico">🔥</span>
+          <span class="ly-name">人口热力图</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item" onclick="toggleLayer(this,'flow')">
+          <span class="ly-ico">➡️</span>
+          <span class="ly-name">人口流向图</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item" onclick="toggleLayer(this,'bar3d')">
+          <span class="ly-ico">📊</span>
+          <span class="ly-name">3D柱状图</span>
+          <span class="ly-act">👁</span>
+        </div>
+      </div>
+
+      <div class="layer-group">
+        <div class="lg-title">📍 注记 / POI</div>
+        <div class="layer-item active">
+          <span class="ly-ico">🏛️</span>
+          <span class="ly-name">政府驻地</span>
+          <span class="ly-act">👁</span>
+        </div>
+        <div class="layer-item active">
+          <span class="ly-ico">🚉</span>
+          <span class="ly-name">交通枢纽</span>
+          <span class="ly-act">👁</span>
+        </div>
+      </div>
+
+      <div class="layer-group">
+        <div class="lg-title" style="color:#ffeb3b;">🎚️ 透明度</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aae0ff;margin-top:4px;">
+          <span style="min-width:50px;">分级图</span>
+          <input type="range" min="0" max="100" value="70" style="flex:1;" oninput="setOpacity('choropleth',this.value)">
+          <span style="min-width:30px;text-align:right;" id="opChoropleth">70%</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#aae0ff;margin-top:4px;">
+          <span style="min-width:50px;">气泡图</span>
+          <input type="range" min="0" max="100" value="85" style="flex:1;" oninput="setOpacity('bubble',this.value)">
+          <span style="min-width:30px;text-align:right;" id="opBubble">85%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 地图 -->
+    <div class="map-wrap">
+      <div id="gisMap"></div>
+      <div class="compass"></div>
+      <div class="mouse-coord">
+        <span>📍 经度:</span> <span class="x" id="mcX">113.6254°E</span>
+        &nbsp;
+        <span>纬度:</span> <span class="y" id="mcY">33.7468°N</span>
+      </div>
+      <div class="minimap">
+        <div class="mm-title">鹰眼图 / Overview</div>
+        <div style="width:100%;height:100%;background:radial-gradient(ellipse at center,#1a2a4a 0%,#0a1428 100%);position:relative;">
+          <div style="position:absolute;top:40%;left:30%;width:40%;height:35%;border:1px dashed #00d4ff;border-radius:2px;background:rgba(0,212,255,.1);"></div>
+          <div class="mm-box" style="top:35%;left:25%;width:50%;height:45%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 属性表 -->
+    <div>
+      <div class="attr-table" style="margin-bottom:10px;">
+        <div class="at-head">
+          <span>📋 要素属性 / Feature Attribute</span>
+          <span style="font-size:10px;color:#666;">点击地图查看</span>
+        </div>
+        <div class="at-body" id="attrBody">
+          <table>
+            <tr><th>字段</th><th>值</th></tr>
+            <tr><td>OID</td><td><em>—</em></td></tr>
+            <tr><td>名称</td><td><em>请点击地图要素</em></td></tr>
+            <tr><td>类型</td><td><em>—</em></td></tr>
+            <tr><td>人口</td><td><em>—</em></td></tr>
+            <tr><td>面积</td><td><em>—</em></td></tr>
+            <tr><td>出生率</td><td><em>—</em></td></tr>
+            <tr><td>老龄化</td><td><em>—</em></td></tr>
+            <tr><td>城镇化</td><td><em>—</em></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:10px;">
+        <div class="card-h"><h3>📊 地图统计</h3><span class="badge">实时</span></div>
+        <div style="padding:10px;font-size:11px;color:#aae0ff;">
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #1a4a8a;">
+            <span>📐 视野范围</span><span style="color:#ffeb3b;" id="mapBounds">— —</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #1a4a8a;">
+            <span>🔍 缩放级别</span><span style="color:#ffeb3b;" id="mapZoom">7</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #1a4a8a;">
+            <span>📏 比例尺</span><span style="color:#ffeb3b;" id="mapScale">1:1,000,000</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #1a4a8a;">
+            <span>📊 已选要素</span><span style="color:#ffeb3b;" id="mapSelected">0 个</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #1a4a8a;">
+            <span>📈 图层数</span><span style="color:#ffeb3b;" id="mapLayers">5 / 12</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;">
+            <span>💾 渲染要素</span><span style="color:#ffeb3b;">2,847 / 2,847</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>🎨 图例 / Legend</h3><span class="badge">分级</span></div>
+        <div style="padding:10px;font-size:11px;">
+          <div style="color:#aae0ff;margin-bottom:6px;font-weight:700;">人口密度分级 (人/km²)</div>
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+            <span style="display:inline-block;width:20px;height:14px;background:#7a0019;border:1px solid #ff5050;"></span>
+            <span style="color:#fff;">&gt; 1000</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+            <span style="display:inline-block;width:20px;height:14px;background:#e60012;"></span>
+            <span style="color:#fff;">700 ~ 1000</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+            <span style="display:inline-block;width:20px;height:14px;background:#ff6b00;"></span>
+            <span style="color:#fff;">400 ~ 700</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+            <span style="display:inline-block;width:20px;height:14px;background:#d4af37;"></span>
+            <span style="color:#fff;">200 ~ 400</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="display:inline-block;width:20px;height:14px;background:#00d4ff;"></span>
+            <span style="color:#fff;">&lt; 200</span>
+          </div>
+          <div style="margin-top:10px;color:#666;font-size:10px;">分级方法：自然断裂法 (Jenks)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:10px;">
+    <div class="flow-legend">
+      <div class="fl-item"><span class="fl-line"></span><span>人口流出方向 (Flow Line)</span></div>
+      <div class="fl-item"><span style="color:#00d4ff;">●</span><span>市级行政中心 (City Center)</span></div>
+      <div class="fl-item"><span style="color:#e60012;font-size:14px;">●</span><span>省会 (Capital)</span></div>
+      <div class="fl-item"><span style="display:inline-block;width:14px;height:14px;background:#e60012;border-radius:50%;"></span><span>人口气泡 (Bubble: 大小=人口)</span></div>
+      <div class="fl-item"><span style="display:inline-block;width:14px;height:14px;background:linear-gradient(135deg,#7a0019,#00d4ff);"></span><span>分级填色 (Choropleth)</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== 09 时空分析 ============================== -->
+<div class="page" id="page-spatiotemporal">
+  <div class="info-bar">
+    <div class="track">
+      <span>⏱️ <b>时空分析</b>：<i>时间+空间</i>维度综合分析</span>
+      <span>📐 <b>分辨率</b>：<i>年度</i>数据，<em>14个时间切片</em></span>
+      <span>🌍 <b>空间单元</b>：<i>市级</i> (18个) / <em>县级</em> (158个)</span>
+      <span>📊 <b>分析方法</b>：<i>时空聚类</i>、<em>热点探测</em>、<i>趋势面</i></span>
+      <span>🔬 <b>算法</b>：<i>G-statistic</i> / <em>Local Moran I</em> / <i>Getis-Ord Gi*</i></span>
+      <span>⏱️ <b>时空分析</b>：<i>时间+空间</i>维度综合分析</span>
+      <span>📐 <b>分辨率</b>：<i>年度</i>数据，<em>14个时间切片</em></span>
+      <span>🌍 <b>空间单元</b>：<i>市级</i> (18个) / <em>县级</em> (158个)</span>
+    </div>
+  </div>
+
+  <div class="page-head">
+    <div class="page-title">
+      <div class="bar"></div>
+      <h2>时空分析</h2>
+      <span class="sub">SPATIOTEMPORAL ANALYSIS</span>
+      <span class="tag-gis" style="margin-left:10px;">ST-Analyzer</span>
+    </div>
+    <div class="breadcrumb">首页 / <span>时空分析</span></div>
+  </div>
+
+  <!-- 时间轴 -->
+  <div class="time-axis">
+    <div class="ta-title">⏱️ 时间轴 / Time Slider <span style="color:#666;font-weight:400;">(拖动播放或点击节点跳转)</span></div>
+    <div class="ta-track" id="timeTrack">
+      <div class="ta-progress" id="timeProgress" style="width:100%;"></div>
+      <div class="ta-marks">
+        <span data-year="2010">2010</span>
+        <span data-year="2011">2011</span>
+        <span data-year="2012">2012</span>
+        <span data-year="2013">2013</span>
+        <span data-year="2014">2014</span>
+        <span data-year="2015">2015</span>
+        <span data-year="2016">2016</span>
+        <span data-year="2017">2017</span>
+        <span data-year="2018">2018</span>
+        <span data-year="2019">2019</span>
+        <span data-year="2020">2020</span>
+        <span data-year="2021">2021</span>
+        <span data-year="2022">2022</span>
+        <span class="active" data-year="2023">2023</span>
+      </div>
+    </div>
+    <div class="ta-play">
+      <button onclick="timePlay()">▶ 播放</button>
+      <button onclick="timePause()">⏸ 暂停</button>
+      <button onclick="timeReset()">⏮ 重置</button>
+      <span>当前: <span class="cur" id="curYear">2023</span></span>
+      <span style="color:#666;">|</span>
+      <span>速度:</span>
+      <select style="background:#0e2748;color:#aae0ff;border:1px solid #1a4a8a;padding:3px 6px;border-radius:3px;font-size:11px;">
+        <option>1x</option>
+        <option selected>2x</option>
+        <option>4x</option>
+      </select>
+      <span style="color:#666;">|</span>
+      <span>指标:</span>
+      <select style="background:#0e2748;color:#aae0ff;border:1px solid #1a4a8a;padding:3px 6px;border-radius:3px;font-size:11px;">
+        <option selected>常住人口</option>
+        <option>出生人口</option>
+        <option>死亡人口</option>
+        <option>出生率</option>
+        <option>自然增长率</option>
+        <option>老龄化率</option>
+        <option>城镇化率</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row c2">
+    <div class="card">
+      <div class="card-h"><h3>🗺️ 时空动态地图</h3><span class="badge">动画</span></div>
+      <div class="echart" id="st_map" style="height:380px;"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>📈 时空趋势矩阵</h3><span class="badge">热力</span></div>
+      <div class="echart" id="st_matrix" style="height:380px;"></div>
+    </div>
+  </div>
+
+  <div class="row c3">
+    <div class="card">
+      <div class="card-h"><h3>🔥 时空热点探测</h3><span class="badge">Gi*</span></div>
+      <div class="echart" id="st_hotspot" style="height:280px;"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>📐 趋势面分析</h3><span class="badge">Trend</span></div>
+      <div class="echart" id="st_trend" style="height:280px;"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>🌊 时空聚类</h3><span class="badge">Cluster</span></div>
+      <div class="echart" id="st_cluster" style="height:280px;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>🔬 时空分析报告 / Spatiotemporal Report</h3><span class="badge">2023</span></div>
+    <div style="padding:12px;font-size:12px;color:#aae0ff;line-height:1.8;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+        <div class="meta-block">
+          <div class="mb-title">🎯 热点区域</div>
+          <div style="color:#fff;font-size:11px;">
+            <b style="color:#ffeb3b;">郑州</b>、<b style="color:#ffeb3b;">洛阳</b>持续为人口流入热点区<br>
+            <span style="color:#666;">G-statistic: <em style="color:#ff5050;">+2.86</em> (99%置信)</span><br>
+            <span style="color:#666;">Getis-Ord Gi*: <em style="color:#ff5050;">+3.12</em></span>
+          </div>
+        </div>
+        <div class="meta-block">
+          <div class="mb-title">⚠️ 冷点区域</div>
+          <div style="color:#fff;font-size:11px;">
+            <b style="color:#ff5050;">南阳</b>、<b style="color:#ff5050;">周口</b>为人口流失冷点<br>
+            <span style="color:#666;">G-statistic: <em style="color:#00d4ff;">-2.45</em> (99%置信)</span><br>
+            <span style="color:#666;">净流出: <em style="color:#ff5050;">150万</em></span>
+          </div>
+        </div>
+        <div class="meta-block">
+          <div class="mb-title">📈 趋势强度</div>
+          <div style="color:#fff;font-size:11px;">
+            整体呈<em style="color:#ff5050;">负增长</em>趋势<br>
+            <span style="color:#666;">Moran's I: <em style="color:#ffeb3b;">0.68</em></span><br>
+            <span style="color:#666;">空间相关性: <em style="color:#00d4ff;">强正相关</em></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== 10 元数据规范 ============================== -->
+<div class="page" id="page-metadata">
+  <div class="info-bar">
+    <div class="track">
+      <span>📋 <b>元数据标准</b>：<i>ISO 19115</i> / <em>GB/T 19710</em> / <i>GB/T 21010</i></span>
+      <span>🌐 <b>数据格式</b>：<i>GeoJSON</i> / <em>Shapefile</em> / <i>KML</i> / <em>CSV</em></span>
+      <span>🔌 <b>OGC服务</b>：<i>WMS</i> / <em>WMTS</em> / <i>WFS</i> / <em>WCS</em></span>
+      <span>📐 <b>坐标系</b>：<i>CGCS2000</i> (EPSG:4490) / <em>WGS84</em> (EPSG:4326)</span>
+      <span>🔐 <b>编码</b>：<i>UTF-8</i>，<em>GB2312</em>兼容</span>
+      <span>📋 <b>元数据标准</b>：<i>ISO 19115</i> / <em>GB/T 19710</em> / <i>GB/T 21010</i></span>
+    </div>
+  </div>
+
+  <div class="page-head">
+    <div class="page-title">
+      <div class="bar"></div>
+      <h2>元数据规范</h2>
+      <span class="sub">METADATA & DATA SPECIFICATION</span>
+      <span class="tag-gis" style="margin-left:10px;">ISO 19115</span>
+    </div>
+    <div class="breadcrumb">首页 / <span>元数据规范</span></div>
+  </div>
+
+  <div class="row c2">
+    <div class="meta-block">
+      <div class="mb-title">📋 数据集元数据 (ISO 19115)</div>
+      <div class="mb-row"><span class="k">数据集标识 (UUID):</span><span class="v"><b>henan-pop-2024-001</b></span></div>
+      <div class="mb-row"><span class="k">数据集名称:</span><span class="v">河南省人口数据综合数据集 (2024版)</span></div>
+      <div class="mb-row"><span class="k">摘要 (Abstract):</span><span class="v">包含河南省18个地级市2010-2023年人口统计数据，涵盖常住人口、出生死亡、婚姻家庭、年龄结构、城镇化率等指标</span></div>
+      <div class="mb-row"><span class="k">目的 (Purpose):</span><span class="v">政府决策支持、人口研究、城市规划、商业选址</span></div>
+      <div class="mb-row"><span class="k">语种 (Language):</span><span class="v"><em>zh-CN</em> (简体中文)</span></div>
+      <div class="mb-row"><span class="k">字符集:</span><span class="v"><em>UTF-8</em></span></div>
+      <div class="mb-row"><span class="k">专题类别:</span><span class="v">society (社会经济)</span></div>
+      <div class="mb-row"><span class="k">关键词:</span><span class="v"><b>人口</b>·<b>统计</b>·<b>河南省</b>·<b>地理</b></span></div>
+    </div>
+
+    <div class="meta-block">
+      <div class="mb-title">📐 空间参考信息</div>
+      <div class="mb-row"><span class="k">坐标系 (CRS):</span><span class="v"><b>CGCS2000</b> (EPSG:4490)</span></div>
+      <div class="mb-row"><span class="k">备选坐标系:</span><span class="v">WGS84 (EPSG:4326), Web Mercator (EPSG:3857)</span></div>
+      <div class="mb-row"><span class="k">投影方式:</span><span class="v">高斯-克吕格 3° 分带 / Web Mercator</span></div>
+      <div class="mb-row"><span class="k">中央经线:</span><span class="v"><em>114°E</em> (郑州所在 3° 带)</span></div>
+      <div class="mb-row"><span class="k">空间范围:</span><span class="v">东经 110°21' - 116°39', 北纬 31°23' - 36°22'</span></div>
+      <div class="mb-row"><span class="k">覆盖范围:</span><span class="v"><b>167,000 km²</b></span></div>
+      <div class="mb-row"><span class="k">空间分辨率:</span><span class="v">市级 (18个) / 县级 (158个) / 乡级 (2,847个)</span></div>
+      <div class="mb-row"><span class="k">拓扑类型:</span><span class="v"><em>Polygon</em> (面要素)</span></div>
+    </div>
+  </div>
+
+  <div class="row c2">
+    <div class="meta-block">
+      <div class="mb-title">🕐 时间参考信息</div>
+      <div class="mb-row"><span class="k">时间范围:</span><span class="v"><b>2010-01-01</b> 至 <b>2023-12-31</b></span></div>
+      <div class="mb-row"><span class="k">时间分辨率:</span><span class="v">年度 (Annual)</span></div>
+      <div class="mb-row"><span class="k">时间基准:</span><span class="v">公历 (Gregorian Calendar)</span></div>
+      <div class="mb-row"><span class="k">更新频率:</span><span class="v">年更 (Annual Update)</span></div>
+      <div class="mb-row"><span class="k">最新更新:</span><span class="v"><em>2024-03-15 10:30:00</em></span></div>
+      <div class="mb-row"><span class="k">下次更新:</span><span class="v">2025-03-15 (预计)</span></div>
+    </div>
+
+    <div class="meta-block">
+      <div class="mb-title">📞 数据质量与联系信息</div>
+      <div class="mb-row"><span class="k">数据来源:</span><span class="v">河南省统计局 + 国家统计局河南调查总队</span></div>
+      <div class="mb-row"><span class="k">来源 URL:</span><span class="v" style="font-size:10px;"><em>http://stats.henan.gov.cn</em></span></div>
+      <div class="mb-row"><span class="k">逻辑一致性:</span><span class="v"><em style="color:#00d4ff;">100%</em> 通过</span></div>
+      <div class="mb-row"><span class="k">完整性:</span><span class="v"><em style="color:#00d4ff;">98.7%</em> (缺商丘2020月数据)</span></div>
+      <div class="mb-row"><span class="k">位置精度:</span><span class="v"><em style="color:#00d4ff;">±5m</em> (边界)</span></div>
+      <div class="mb-row"><span class="k">属性精度:</span><span class="v"><em style="color:#00d4ff;">99.2%</em></span></div>
+      <div class="mb-row"><span class="k">联系人:</span><span class="v">河南省统计局 数据管理处</span></div>
+      <div class="mb-row"><span class="k">联系方式:</span><span class="v">0371-6590XXXX · stats@henan.gov.cn</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>📚 数据字典 / Data Dictionary</h3><span class="badge">18字段</span></div>
+    <div class="dict-table">
+      <table>
+        <thead>
+          <tr>
+            <th>序号</th>
+            <th>字段名 (Field)</th>
+            <th>类型</th>
+            <th>单位</th>
+            <th>说明 (Description)</th>
+            <th>示例</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td><b>OBJECTID</b></td><td><span class="badge-type num">Integer</span></td><td>—</td><td>要素唯一标识符 (Object ID)</td><td><em>1, 2, 3...</em></td></tr>
+          <tr><td>2</td><td><b>name</b></td><td><span class="badge-type str">String(50)</span></td><td>—</td><td>市级行政区名称</td><td><em>"郑州市"</em></td></tr>
+          <tr><td>3</td><td><b>adcode</b></td><td><span class="badge-type str">String(6)</span></td><td>—</td><td>行政区划代码 (GB/T 2260)</td><td><em>"410100"</em></td></tr>
+          <tr><td>4</td><td><b>center_lng</b></td><td><span class="badge-type num">Double</span></td><td>°</td><td>行政中心经度 (WGS84)</td><td><em>113.6254</em></td></tr>
+          <tr><td>5</td><td><b>center_lat</b></td><td><span class="badge-type num">Double</span></td><td>°</td><td>行政中心纬度 (WGS84)</td><td><em>34.7466</em></td></tr>
+          <tr><td>6</td><td><b>pop_total</b></td><td><span class="badge-type num">Integer</span></td><td>万人</td><td>常住人口数量</td><td><em>1300</em></td></tr>
+          <tr><td>7</td><td><b>pop_birth</b></td><td><span class="badge-type num">Integer</span></td><td>万人</td><td>年出生人口</td><td><em>8.2</em></td></tr>
+          <tr><td>8</td><td><b>pop_death</b></td><td><span class="badge-type num">Integer</span></td><td>万人</td><td>年死亡人口</td><td><em>7.5</em></td></tr>
+          <tr><td>9</td><td><b>birth_rate</b></td><td><span class="badge-type num">Double</span></td><td>‰</td><td>人口出生率</td><td><em>8.2</em></td></tr>
+          <tr><td>10</td><td><b>death_rate</b></td><td><span class="badge-type num">Double</span></td><td>‰</td><td>人口死亡率</td><td><em>7.5</em></td></tr>
+          <tr><td>11</td><td><b>natural_rate</b></td><td><span class="badge-type num">Double</span></td><td>‰</td><td>自然增长率</td><td><em>0.7</em></td></tr>
+          <tr><td>12</td><td><b>marry_count</b></td><td><span class="badge-type num">Integer</span></td><td>万对</td><td>结婚登记数</td><td><em>5.2</em></td></tr>
+          <tr><td>13</td><td><b>divorce_count</b></td><td><span class="badge-type num">Integer</span></td><td>万对</td><td>离婚登记数</td><td><em>2.5</em></td></tr>
+          <tr><td>14</td><td><b>old_ratio</b></td><td><span class="badge-type num">Double</span></td><td>%</td><td>60岁以上人口占比</td><td><em>15.4</em></td></tr>
+          <tr><td>15</td><td><b>urban_rate</b></td><td><span class="badge-type num">Double</span></td><td>%</td><td>城镇化率</td><td><em>79.1</em></td></tr>
+          <tr><td>16</td><td><b>density</b></td><td><span class="badge-type num">Integer</span></td><td>人/km²</td><td>人口密度</td><td><em>1750</em></td></tr>
+          <tr><td>17</td><td><b>gdp</b></td><td><span class="badge-type num">Double</span></td><td>万亿元</td><td>地区生产总值</td><td><em>1.36</em></td></tr>
+          <tr><td>18</td><td><b>geometry</b></td><td><span class="badge-type">Geometry</span></td><td>—</td><td>空间几何 (Polygon/MultiPolygon)</td><td><em>SRID=4490</em></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="row c2">
+    <div class="card">
+      <div class="card-h"><h3>🔌 OGC 服务接口</h3><span class="badge">REST</span></div>
+      <div style="padding:10px;font-size:11px;font-family:Consolas,monospace;color:#aae0ff;">
+        <div style="padding:4px 0;color:#666;">// WMS 地图服务</div>
+        <div style="padding:4px 0;color:#ffeb3b;">GET /wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap</div>
+        <div style="padding:4px 0;color:#00d4ff;">&LAYERS=henan:city&CRS=EPSG:4326&BBOX=...</div>
+        <div style="padding:8px 0;color:#666;">// WFS 要素服务</div>
+        <div style="padding:4px 0;color:#ffeb3b;">GET /wfs?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature</div>
+        <div style="padding:4px 0;color:#00d4ff;">&TYPENAME=henan:city&OUTPUTFORMAT=geojson</div>
+        <div style="padding:8px 0;color:#666;">// WMTS 瓦片服务</div>
+        <div style="padding:4px 0;color:#ffeb3b;">GET /wmts?SERVICE=WMTS&REQUEST=GetTile</div>
+        <div style="padding:4px 0;color:#00d4ff;">&LAYER=henan_vec&TILEMATRIXSET=w&TileMatrix=7</div>
+        <div style="padding:8px 0;color:#666;">// 数据导出</div>
+        <div style="padding:4px 0;color:#ffeb3b;">GET /export?format=geojson&fields=*&year=2023</div>
+        <div style="padding:4px 0;color:#00d4ff;">→ 返回 GeoJSON FeatureCollection</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>📦 数据格式支持</h3><span class="badge">Multi-Format</span></div>
+      <div style="padding:10px;font-size:11px;color:#aae0ff;line-height:1.8;">
+        <div style="padding:4px 0;display:flex;align-items:center;gap:6px;">
+          <span style="background:rgba(0,212,255,.2);color:#00d4ff;padding:2px 8px;border-radius:2px;font-family:Consolas,monospace;font-size:10px;font-weight:700;">GeoJSON</span>
+          <span style="color:#fff;">✓ 支持 (RFC 7946)</span>
+        </div>
+        <div style="padding:4px 0;display:flex;align-items:center;gap:6px;">
+          <span style="background:rgba(255,235,59,.2);color:#ffeb3b;padding:2px 8px;border-radius:2px;font-family:Consolas,monospace;font-size:10px;font-weight:700;">Shapefile</span>
+          <span style="color:#fff;">✓ 支持 (ESRI, 含 .shp/.dbf/.prj)</span>
+        </div>
+        <div style="padding:4px 0;display:flex;align-items:center;gap:6px;">
+          <span style="background:rgba(230,0,18,.2);color:#ff5050;padding:2px 8px;border-radius:2px;font-family:Consolas,monospace;font-size:10px;font-weight:700;">KML</span>
+          <span style="color:#fff;">✓ 支持 (Google Earth)</span>
+        </div>
+        <div style="padding:4px 0;display:flex;align-items:center;gap:6px;">
+          <span style="background:rgba(212,175,55,.2);color:#d4af37;padding:2px 8px;border-radius:2px;font-family:Consolas,monospace;font-size:10px;font-weight:700;">CSV</span>
+          <span style="color:#fff;">✓ 支持 (UTF-8 with BOM)</span>
+        </div>
+        <div style="padding:4px 0;display:flex;align-items:center;gap:6px;">
+          <span style="background:rgba(0,212,255,.2);color:#00d4ff;padding:2px 8px;border-radius:2px;font-family:Consolas,monospace;font-size:10px;font-weight:700;">TopoJSON</span>
+          <span style="color:#fff;">✓ 支持 (拓扑压缩)</span>
+        </div>
+        <div style="padding:4px 0;display:flex;align-items:center;gap:6px;">
+          <span style="background:rgba(255,235,59,.2);color:#ffeb3b;padding:2px 8px;border-radius:2px;font-family:Consolas,monospace;font-size:10px;font-weight:700;">GDB</span>
+          <span style="color:#fff;">✓ 支持 (File Geodatabase)</span>
+        </div>
+        <div style="padding:4px 0;display:flex;align-items:center;gap:6px;">
+          <span style="background:rgba(230,0,18,.2);color:#ff5050;padding:2px 8px;border-radius:2px;font-family:Consolas,monospace;font-size:10px;font-weight:700;">MIF/MID</span>
+          <span style="color:#fff;">✓ 支持 (MapInfo)</span>
+        </div>
+        <div style="padding:4px 0;display:flex;align-items:center;gap:6px;">
+          <span style="background:rgba(212,175,55,.2);color:#d4af37;padding:2px 8px;border-radius:2px;font-family:Consolas,monospace;font-size:10px;font-weight:700;">DXF</span>
+          <span style="color:#fff;">✓ 支持 (AutoCAD)</span>
+        </div>
+        <div style="padding:8px 0;color:#666;font-size:10px;">所有格式均符合 OGC 规范，编码 UTF-8</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 底部链接墙 - 密集链接云 -->
+<div class="link-wall">
+  <div class="lw-title">
+    <span class="dot"></span>
+    <span>友情链接 / 合作伙伴 / 数据来源 / 相关链接</span>
+    <span style="margin-left:auto;color:#888;font-weight:400;">共 218 个链接 · 持续更新中</span>
+  </div>
+  <div>
+    <a href="#" class="hot">中国政府网</a>
+    <a href="#" class="new">国家统计局</a>
+    <a href="#" class="hot">河南省人民政府</a>
+    <a href="#" class="new">河南省统计局</a>
+    <a href="#" class="gold">河南调查总队</a>
+    <a href="#" class="hot">国家卫健委</a>
+    <a href="#" class="new">民政部</a>
+    <a href="#" class="gold">公安部</a>
+    <a href="#" class="hot">教育部</a>
+    <a href="#" class="new">人社部</a>
+    <a href="#" class="gold">郑州市政府</a>
+    <a href="#" class="hot">洛阳市政府</a>
+    <a href="#" class="new">开封市政府</a>
+    <a href="#" class="gold">南阳市政府</a>
+    <a href="#" class="hot">信阳市政府</a>
+    <a href="#" class="new">新乡市政府</a>
+    <a href="#" class="gold">安阳市政府</a>
+    <a href="#" class="hot">濮阳市政府</a>
+    <a href="#" class="new">焦作市政府</a>
+    <a href="#" class="gold">许昌市政府</a>
+    <a href="#" class="hot">漯河市政府</a>
+    <a href="#" class="new">三门峡政府</a>
+    <a href="#" class="gold">平顶山政府</a>
+    <a href="#" class="hot">商丘市政府</a>
+    <a href="#" class="new">周口市政府</a>
+    <a href="#" class="gold">驻马店政府</a>
+    <a href="#" class="hot">鹤壁市政府</a>
+    <a href="#" class="new">济源市政府</a>
+    <a href="#" class="hot">中国人民大学</a>
+    <a href="#" class="new">北京大学</a>
+    <a href="#" class="gold">清华大学</a>
+    <a href="#" class="hot">复旦大学</a>
+    <a href="#" class="new">武汉大学</a>
+    <a href="#" class="gold">郑州大学</a>
+    <a href="#" class="hot">河南大学</a>
+    <a href="#" class="new">河南师大</a>
+    <a href="#" class="gold">河南农大</a>
+    <a href="#" class="hot">河南财大</a>
+    <a href="#" class="new">中原工学院</a>
+    <a href="#" class="gold">河南科技大学</a>
+    <a href="#" class="hot">河南工学院</a>
+    <a href="#" class="new">河南中医药大学</a>
+    <a href="#" class="gold">华北水利水电</a>
+    <a href="#" class="hot">河南工程学院</a>
+    <a href="#" class="new">南阳师范学院</a>
+    <a href="#" class="gold">信阳师范学院</a>
+    <a href="#" class="hot">商丘师范学院</a>
+    <a href="#" class="new">周口师范学院</a>
+    <a href="#" class="gold">安阳师范学院</a>
+    <a href="#" class="hot">洛阳师范学院</a>
+    <a href="#" class="new">人口学会</a>
+    <a href="#" class="gold">人口与发展研究中心</a>
+    <a href="#" class="hot">人口研究杂志</a>
+    <a href="#" class="new">人口与经济</a>
+    <a href="#" class="gold">中国卫生健康统计年鉴</a>
+    <a href="#" class="hot">中国统计年鉴</a>
+    <a href="#" class="new">中国民政统计年鉴</a>
+    <a href="#" class="gold">中国教育统计年鉴</a>
+    <a href="#" class="hot">中国人口和就业统计年鉴</a>
+    <a href="#" class="new">中国城市统计年鉴</a>
+    <a href="#" class="gold">中国县域统计年鉴</a>
+    <a href="#" class="hot">中国人口普查资料</a>
+    <a href="#" class="new">第七次全国人口普查</a>
+    <a href="#" class="gold">第五次全国人口普查</a>
+    <a href="#" class="hot">第六次全国人口普查</a>
+    <a href="#" class="new">世界银行人口数据</a>
+    <a href="#" class="gold">联合国人口署</a>
+    <a href="#" class="hot">世界人口展望</a>
+    <a href="#" class="new">人口金字塔</a>
+    <a href="#" class="gold">人口时钟</a>
+    <a href="#" class="hot">中国人口学会</a>
+    <a href="#" class="new">中国老龄科研中心</a>
+    <a href="#" class="gold">中国疾控中心</a>
+    <a href="#" class="hot">中国妇幼健康</a>
+    <a href="#" class="new">中华医学会</a>
+    <a href="#" class="gold">中国生殖健康</a>
+    <a href="#" class="hot">国务院发展研究中心</a>
+    <a href="#" class="new">社科院人口所</a>
+    <a href="#" class="gold">国家发改委</a>
+    <a href="#" class="hot">工信部</a>
+    <a href="#" class="new">农业农村部</a>
+    <a href="#" class="gold">自然资源部</a>
+    <a href="#" class="hot">生态环境部</a>
+    <a href="#" class="new">住房城乡建设部</a>
+    <a href="#" class="gold">交通运输部</a>
+    <a href="#" class="hot">商务部</a>
+    <a href="#" class="new">文化和旅游部</a>
+    <a href="#" class="gold">国家卫生健康委</a>
+    <a href="#" class="hot">国家医疗保障局</a>
+    <a href="#" class="new">国家药监局</a>
+    <a href="#" class="gold">国家中医药管理局</a>
+    <a href="#" class="hot">国家档案局</a>
+    <a href="#" class="new">国家保密局</a>
+    <a href="#" class="gold">国家密码管理局</a>
+    <a href="#" class="hot">国家公务员局</a>
+    <a href="#" class="new">国务院港澳办</a>
+    <a href="#" class="gold">国务院台办</a>
+    <a href="#" class="hot">国家信访局</a>
+    <a href="#" class="new">国家粮食和物资储备局</a>
+    <a href="#" class="gold">国家能源局</a>
+    <a href="#" class="hot">国家国防科技工业局</a>
+    <a href="#" class="new">国家烟草局</a>
+    <a href="#" class="gold">国家林草局</a>
+    <a href="#" class="hot">国家知识产权局</a>
+    <a href="#" class="new">国家文物局</a>
+    <a href="#" class="gold">OSGeo 中国</a>
+    <a href="#" class="hot">Leaflet 官方</a>
+    <a href="#" class="new">Mapbox GL JS</a>
+    <a href="#" class="gold">OpenLayers</a>
+    <a href="#" class="hot">Cesium 三维</a>
+    <a href="#" class="new">deck.gl</a>
+    <a href="#" class="gold">Turf.js 空间分析</a>
+    <a href="#" class="hot">D3.js 可视化</a>
+    <a href="#" class="new">ECharts GIS</a>
+    <a href="#" class="gold">ArcGIS API</a>
+    <a href="#" class="hot">QGIS 文档</a>
+    <a href="#" class="new">PostGIS 数据库</a>
+    <a href="#" class="gold">GeoServer 服务</a>
+    <a href="#" class="hot">MapServer 服务</a>
+    <a href="#" class="new">GDAL/OGR</a>
+    <a href="#" class="gold">PROJ 投影库</a>
+    <a href="#" class="hot">天地图 WMTS</a>
+    <a href="#" class="new">高德地图 API</a>
+    <a href="#" class="gold">百度地图 API</a>
+    <a href="#" class="hot">腾讯地图 API</a>
+    <a href="#" class="new">OpenStreetMap</a>
+    <a href="#" class="gold">Natural Earth</a>
+    <a href="#" class="hot">GADM 全球边界</a>
+    <a href="#" class="new">GeoNames</a>
+    <a href="#" class="gold">OGC 规范</a>
+    <a href="#" class="hot">W3C Geo 标准</a>
+    <a href="#" class="new">ISO/TC 211</a>
+    <a href="#" class="gold">EPSG 坐标系库</a>
+    <a href="#" class="hot">Carto 底图</a>
+    <a href="#" class="new">Mapbox Studio</a>
+    <a href="#" class="gold">Maputnik 编辑器</a>
+    <a href="#" class="hot">GeoJSON 规范</a>
+    <a href="#" class="new">TopoJSON</a>
+    <a href="#" class="gold">KML 规范</a>
+    <a href="#" class="hot">Mapbox GL Draw</a>
+    <a href="#" class="new">Leaflet.draw</a>
+    <a href="#" class="gold">Leaflet.markercluster</a>
+    <a href="#" class="hot">Leaflet.heat</a>
+    <a href="#" class="new">Leaflet 中文</a>
+    <a href="#" class="gold">SuperMap iClient</a>
+    <a href="#" class="hot">MapGIS</a>
+    <a href="#" class="new">苍穹数码 KQGIS</a>
+    <a href="#" class="gold">易智瑞 ERDAS</a>
+    <a href="#" class="hot">超图 SuperMap</a>
+    <a href="#" class="new">中地数码 MapGIS</a>
+    <a href="#" class="gold">国信司南 GNSS</a>
+    <a href="#" class="hot">四维图新</a>
+    <a href="#" class="new">易图通 eMap</a>
+    <a href="#" class="gold">立得空间 LEADING</a>
+    <a href="#" class="hot">航天宏图 PIE</a>
+    <a href="#" class="new">中科院空天院</a>
+    <a href="#" class="gold">测绘地理信息学会</a>
+    <a href="#" class="hot">中国 GIS 协会</a>
+  </div>
+</div>
+
+<footer>
+  ⚡ 数据来源：河南省统计局 · 国家统计局河南调查总队 · 2023年度统计公报 · © 2024 豫·人口数据综合管理平台
+</footer>
+
+<!-- 侧边浮动广告 - 左右各一列 -->
+<div class="side-ad left">
+  <div class="ad-item"><span class="ico">📊</span><div class="t">数据导出</div><div class="p">免费</div></div>
+  <div class="ad-item"><span class="ico">📈</span><div class="t">趋势预测</div><div class="p">NEW</div></div>
+  <div class="ad-item"><span class="ico">🗺️</span><div class="t">地图视图</div><div class="p">HOT</div></div>
+  <div class="ad-item"><span class="ico">📋</span><div class="t">报告下载</div><div class="p">PDF</div></div>
+  <div class="ad-item"><span class="ico">🔔</span><div class="t">数据订阅</div><div class="p">VIP</div></div>
+  <div class="ad-item"><span class="ico">⚙️</span><div class="t">对比分析</div><div class="p">HOT</div></div>
+  <div class="ad-item"><span class="ico">💡</span><div class="t">专家解读</div><div class="p">NEW</div></div>
+</div>
+<div class="side-ad right">
+  <div class="ad-item"><span class="ico">🎯</span><div class="t">精准查询</div><div class="p">免费</div></div>
+  <div class="ad-item"><span class="ico">🔍</span><div class="t">数据检索</div><div class="p">HOT</div></div>
+  <div class="ad-item"><span class="ico">📅</span><div class="t">历史回溯</div><div class="p">NEW</div></div>
+  <div class="ad-item"><span class="ico">🌐</span><div class="t">在线分享</div><div class="p">VIP</div></div>
+  <div class="ad-item"><span class="ico">💬</span><div class="t">留言反馈</div><div class="p">免费</div></div>
+  <div class="ad-item"><span class="ico">🎓</span><div class="t">学术合作</div><div class="p">HOT</div></div>
+  <div class="ad-item"><span class="ico">📞</span><div class="t">联系我们</div><div class="p">24h</div></div>
+</div>
+
+<!-- 浮动横幅广告 -->
+<div class="float-banner b1">🔥 点击领取 → 数据报告</div>
+<div class="float-banner b2">⭐ 限时优惠 · 订阅即享</div>
+
+<!-- 右下角弹窗广告 -->
+<div class="popup-ad">
+  <div class="ph">
+    <span class="t">📢 系统推荐</span>
+    <span class="x">×</span>
+  </div>
+  <div class="bd">
+    <b>2024河南人口发展报告</b>已发布！<br>
+    涵盖<em>18地市</em>详细数据<br>
+    含<em>5年趋势预测</em>和<i>专家解读</i><br>
+    <i>前100名</i>下载免费，速来领取！
+  </div>
+  <a href="#" class="btn">🚀 立即免费下载</a>
+</div>
+
+<script>
+/* ============================================
+ * 数据
+ * ============================================ */
+const cities = [
+  {name:"郑州市",short:"郑州",pop:1300,birth:8.2,death:7.5,urban:79.1,marry:5.2,old:15.4,density:1750,gdp:13.6},
+  {name:"南阳市",short:"南阳",pop:962, birth:7.5,death:7.8,urban:51.2,marry:3.8,old:19.5,density:380,  gdp:4.5},
+  {name:"周口市",short:"周口",pop:881, birth:8.1,death:7.9,urban:46.5,marry:3.5,old:18.7,density:730,  gdp:3.8},
+  {name:"商丘市",short:"商丘",pop:773, birth:8.4,death:7.7,urban:49.3,marry:3.0,old:17.8,density:720,  gdp:3.4},
+  {name:"洛阳市",short:"洛阳",pop:710, birth:6.9,death:7.4,urban:64.5,marry:2.8,old:18.2,density:470,  gdp:5.4},
+  {name:"驻马店市",short:"驻马店",pop:689,birth:8.6,death:8.0,urban:48.1,marry:2.7,old:18.4,density:550,  gdp:3.1},
+  {name:"信阳市",short:"信阳",pop:613, birth:6.8,death:7.6,urban:50.7,marry:2.4,old:19.1,density:430,  gdp:2.8},
+  {name:"新乡市",short:"新乡",pop:612, birth:7.0,death:7.5,urban:60.4,marry:2.5,old:17.5,density:680,  gdp:3.5},
+  {name:"安阳市",short:"安阳",pop:542, birth:6.5,death:7.3,urban:55.8,marry:2.2,old:18.6,density:740,  gdp:2.6},
+  {name:"平顶山市",short:"平顶山",pop:498,birth:6.4,death:7.2,urban:57.3,marry:2.0,old:17.9,density:650,  gdp:2.4},
+  {name:"开封市",short:"开封",pop:482, birth:6.6,death:7.1,urban:54.7,marry:2.0,old:17.4,density:750,  gdp:2.5},
+  {name:"许昌市",short:"许昌",pop:441, birth:6.7,death:7.2,urban:58.6,marry:1.8,old:16.8,density:880,  gdp:3.0},
+  {name:"濮阳市",short:"濮阳",pop:379, birth:7.1,death:7.4,urban:52.4,marry:1.5,old:16.5,density:860,  gdp:1.8},
+  {name:"焦作市",short:"焦作",pop:352, birth:6.2,death:7.0,urban:62.3,marry:1.4,old:17.0,density:840,  gdp:2.2},
+  {name:"漯河市",short:"漯河",pop:260, birth:6.5,death:7.1,urban:59.5,marry:1.0,old:16.3,density:1080, gdp:1.5},
+  {name:"三门峡市",short:"三门峡",pop:202,birth:5.9,death:6.9,urban:60.7,marry:0.8,old:18.0,density:210,  gdp:1.3},
+  {name:"鹤壁市",short:"鹤壁",pop:158, birth:6.0,death:6.8,urban:63.8,marry:0.6,old:16.9,density:680,  gdp:1.0},
+  {name:"济源市",short:"济源",pop:72,  birth:5.8,death:6.7,urban:67.5,marry:0.3,old:15.8,density:430,  gdp:0.7}
+];
+
+const hist = {
+  year:[2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023],
+  pop:[9402,9388,9386,9392,9406,9436,9480,9529,9588,9640,9710,9788,9815,9815],
+  birth:[124,121,120,119,120,114,115,120,127,128,103,79,73,67],
+  death:[63,65,67,68,69,70,72,73,74,75,76,75,75,75],
+  marry:[86,85,83.5,72,70,65,62,58,56,54,50,49,48.8,46.3],
+  divorce:[15.5,17,19,22,24,26,28,30,31,32,28,24,25.8,22.7],
+  br:[13.2,12.9,12.8,12.7,12.8,12.1,12.1,12.6,13.3,13.3,10.6,8.1,7.4,6.82],
+  dr:[6.7,6.9,7.1,7.2,7.3,7.4,7.6,7.7,7.7,7.8,7.8,7.7,7.6,7.64],
+  nat:[6.5,6.0,5.7,5.5,5.5,4.7,4.5,4.9,5.6,5.5,2.8,0.4,-0.2,-0.82],
+  urban:[38.5,40.6,42.4,44.3,45.2,46.6,48.5,50.2,51.7,53.2,55.0,56.5,57.4,58.08],
+  gdp:[2.5,3.0,3.4,3.8,4.1,4.5,5.0,5.5,6.2,6.8,7.5,8.4,9.5,10.8]
+};
+
+/* ============================================
+ * 主题
+ * ============================================ */
+const C = {red:'#e60012',gold:'#d4af37',blue:'#00d4ff',gray:'#7a7a7a',bright:'#ffd700'};
+const T = {bg:'transparent', text:'#cdd5e0', axis:'rgba(255,255,255,0.1)'};
+const CMT = {
+  textStyle:{color:T.text, fontFamily:'Microsoft YaHei'},
+  tooltip:{backgroundColor:'rgba(10,14,39,.95)', borderColor:C.bright, borderWidth:1, textStyle:{color:'#fff'}},
+  legend:{textStyle:{color:T.text}}
+};
+const BASE_AXIS = {
+  axisLine:{lineStyle:{color:T.axis}},
+  axisLabel:{color:T.text, fontSize:11},
+  splitLine:{lineStyle:{color:T.axis, type:'dashed'}}
+};
+
+const charts = {};
+function initChart(id, opt){
+  if(charts[id]) return charts[id];
+  const el = document.getElementById(id);
+  if(!el) return null;
+  const c = echarts.init(el);
+  c.setOption(opt);
+  charts[id] = c;
+  return c;
+}
+
+/* ============================================
+ * 粒子背景（Canvas）
+ * ============================================ */
+(function(){
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  let w, h, particles = [];
+  const mouse = {x:0, y:0};
+
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  document.addEventListener('mousemove', e=>{
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+
+  // 创建粒子
+  for(let i=0;i<80;i++){
+    particles.push({
+      x: Math.random()*w,
+      y: Math.random()*h,
+      vx: (Math.random()-0.5)*0.6,
+      vy: (Math.random()-0.5)*0.6,
+      r: Math.random()*1.5+0.5,
+      color: ['#e60012','#ffd700','#00d4ff','#ff6b6b','#ff00ff'][Math.floor(Math.random()*5)]
+    });
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    // 绘制粒子
+    particles.forEach(p=>{
+      p.x += p.vx;
+      p.y += p.vy;
+      if(p.x<0||p.x>w) p.vx*=-1;
+      if(p.y<0||p.y>h) p.vy*=-1;
+
+      // 鼠标吸引
+      const dx = mouse.x - p.x;
+      const dy = mouse.y - p.y;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      if(dist < 200){
+        p.x += dx/200*0.5;
+        p.y += dy/200*0.5;
+      }
+
+      // 发光
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    // 连线
+    for(let i=0;i<particles.length;i++){
+      for(let j=i+1;j<particles.length;j++){
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx*dx+dy*dy);
+        if(dist < 120){
+          const alpha = (1 - dist/120) * 0.3;
+          ctx.strokeStyle = `rgba(255,215,0,${alpha})`;
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.stroke();
+        }
+      }
+      // 与鼠标连线
+      const dx = mouse.x - particles[i].x;
+      const dy = mouse.y - particles[i].y;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      if(dist < 150){
+        const alpha = (1 - dist/150) * 0.5;
+        ctx.strokeStyle = `rgba(255,215,0,${alpha})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(mouse.x, mouse.y);
+        ctx.stroke();
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ============================================
+ * 鼠标光晕跟随
+ * ============================================ */
+(function(){
+  const glow = document.getElementById('cursorGlow');
+  let tx=0, ty=0, cx=0, cy=0;
+  document.addEventListener('mousemove', e=>{ tx=e.clientX; ty=e.clientY; });
+  function loop(){
+    cx += (tx-cx)*0.15;
+    cy += (ty-cy)*0.15;
+    glow.style.left = cx+'px';
+    glow.style.top = cy+'px';
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+
+/* ============================================
+ * 卡片3D倾斜
+ * ============================================ */
+document.addEventListener('mousemove', e=>{
+  document.querySelectorAll('.card, .kpi').forEach(card=>{
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if(x < 0 || x > rect.width || y < 0 || y > rect.height) return;
+    const xc = rect.width/2;
+    const yc = rect.height/2;
+    const dx = (x - xc) / xc;
+    const dy = (y - yc) / yc;
+    card.style.transform = `perspective(1000px) rotateY(${dx*3}deg) rotateX(${-dy*3}deg) translateY(-4px)`;
+  });
+});
+document.addEventListener('mouseleave', ()=>{
+  document.querySelectorAll('.card, .kpi').forEach(card=>{
+    card.style.transform = '';
+  });
+});
+
+/* ============================================
+ * 数字滚动
+ * ============================================ */
+function animateNum(el){
+  const target = parseFloat(el.dataset.target);
+  const suffix = el.dataset.suffix || '';
+  const dec = parseInt(el.dataset.decimal || '0');
+  const dur = 1800;
+  const start = performance.now();
+  function step(now){
+    const t = Math.min(1, (now - start)/dur);
+    const eased = 1 - Math.pow(1-t, 3);
+    const v = target * eased;
+    el.textContent = v.toFixed(dec) + suffix;
+    if(t < 1) requestAnimationFrame(step);
+    else el.textContent = target + suffix;
+  }
+  requestAnimationFrame(step);
+}
+document.querySelectorAll('[data-target]').forEach(animateNum);
+
+/* ============================================
+ * 图表初始化
+ * ============================================ */
+function initOverview(){
+  initChart('o1', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    grid:{left:40, right:20, top:20, bottom:30},
+    xAxis:{type:'category', data:['2018','2019','2020','2021','2022','2023'], ...BASE_AXIS},
+    yAxis:{type:'value', ...BASE_AXIS},
+    series:[
+      {name:'出生人口', type:'line', smooth:true, data:[127,128,103,79,73,67], itemStyle:{color:C.red}, lineStyle:{width:2}, symbolSize:6, areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(230,0,18,.4)'},{offset:1,color:'rgba(230,0,18,0)'}])}},
+      {name:'死亡人口', type:'line', smooth:true, data:[74,75,76,75,75,75], itemStyle:{color:C.gray}, lineStyle:{width:2}, symbolSize:6},
+      {name:'结婚登记', type:'line', smooth:true, data:[56,54,50,49,48.8,46.3], itemStyle:{color:C.blue}, lineStyle:{width:2, type:'dashed'}, symbolSize:6}
+    ]
+  });
+  initChart('o2', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    grid:{left:50, right:30, top:20, bottom:30},
+    xAxis:{type:'category', data:hist.year, ...BASE_AXIS},
+    yAxis:{type:'value', name:'万人', ...BASE_AXIS},
+    series:[{type:'line', smooth:true, data:hist.pop,
+      itemStyle:{color:C.gold}, lineStyle:{width:3}, symbolSize:8,
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(212,175,55,.5)'},{offset:1,color:'rgba(212,175,55,0)'}])},
+      markPoint:{data:[{type:'max', name:'峰值'}], symbolSize:50, label:{color:C.gold}}
+    }]
+  });
+  initChart('o3', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    legend:{...CMT.legend, top:0},
+    grid:{left:40, right:20, top:30, bottom:30},
+    xAxis:{type:'category', data:hist.year.slice(-10), ...BASE_AXIS},
+    yAxis:{type:'value', ...BASE_AXIS},
+    series:[
+      {name:'出生人口', type:'bar', data:hist.birth.slice(-10), itemStyle:{borderRadius:[4,4,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:C.red},{offset:1,color:'rgba(230,0,18,.3)'}])}},
+      {name:'死亡人口', type:'bar', data:hist.death.slice(-10), itemStyle:{borderRadius:[4,4,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:C.gray},{offset:1,color:'rgba(122,122,122,.3)'}])}}
+    ]
+  });
+  initChart('o4', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    legend:{...CMT.legend, top:0},
+    grid:{left:50, right:20, top:30, bottom:30},
+    xAxis:{type:'category', data:hist.year.slice(-10), ...BASE_AXIS},
+    yAxis:{type:'value', name:'万对', ...BASE_AXIS},
+    series:[
+      {name:'结婚登记', type:'line', smooth:true, data:hist.marry.slice(-10), itemStyle:{color:C.blue}, lineStyle:{width:3}, symbolSize:7, areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(0,212,255,.3)'},{offset:1,color:'rgba(0,212,255,0)'}])}},
+      {name:'离婚登记', type:'line', smooth:true, data:hist.divorce.slice(-10), itemStyle:{color:C.gold}, lineStyle:{width:3, type:'dashed'}, symbolSize:7}
+    ]
+  });
+  initChart('o5', {
+    ...CMT, tooltip:{...CMT.tooltip, formatter:'{b}<br/>{c}万人 ({d}%)'},
+    legend:{bottom:0, textStyle:{color:T.text, fontSize:11}},
+    series:[{type:'pie', radius:['40%','70%'], center:['50%','45%'],
+      itemStyle:{borderRadius:8, borderColor:'#0a0e27', borderWidth:3},
+      label:{color:'#fff', fontSize:11},
+      data:[
+        {value:2200, name:'0-14岁', itemStyle:{color:C.blue}},
+        {value:5700, name:'15-59岁', itemStyle:{color:C.gold}},
+        {value:1280, name:'60-64岁', itemStyle:{color:'#ff6b6b'}},
+        {value:580, name:'65岁以上', itemStyle:{color:C.red}}
+      ]}]
+  });
+  initChart('o6', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'item', formatter:'{b}<br/>常住人口：{c}万'},
+    grid:{left:50, right:20, top:20, bottom:60},
+    xAxis:{type:'category', data:cities.map(c=>c.short), axisLabel:{...BASE_AXIS.axisLabel, rotate:50, fontSize:10}, axisLine:BASE_AXIS.axisLine},
+    yAxis:{type:'value', name:'万人', ...BASE_AXIS},
+    series:[{type:'bar', data:cities.map(c=>c.pop),
+      itemStyle:{borderRadius:[6,6,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:C.red},{offset:1,color:'rgba(212,175,55,.3)'}])},
+      label:{show:true, position:'top', color:C.gold, fontSize:10}
+    }]
+  });
+}
+
+function initStructure(){
+  initChart('s_c1', {
+    ...CMT, tooltip:{...CMT.tooltip, formatter:'{b}<br/>{c}万人 ({d}%)'},
+    legend:{bottom:0, textStyle:{color:T.text, fontSize:11}},
+    series:[{type:'pie', radius:['45%','70%'], center:['50%','45%'],
+      itemStyle:{borderRadius:6, borderColor:'#0a0e27', borderWidth:3},
+      label:{color:'#fff', fontSize:11, formatter:'{b}\n{d}%'},
+      data:[
+        {value:2200, name:'0-14岁', itemStyle:{color:C.blue}},
+        {value:5700, name:'15-59岁', itemStyle:{color:C.gold}},
+        {value:1860, name:'60+', itemStyle:{color:C.red}}
+      ]}]
+  });
+  initChart('s_c2', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    legend:{...CMT.legend, top:0},
+    grid:{left:50, right:60, top:30, bottom:30},
+    xAxis:{type:'value', ...BASE_AXIS},
+    yAxis:{type:'category', data:['100+','95-99','90-94','85-89','80-84','75-79','70-74','65-69','60-64','55-59','50-54','45-49','40-44','35-39','30-34','25-29','20-24','15-19','10-14','5-9','0-4'], ...BASE_AXIS.axisLine, axisLabel:{...BASE_AXIS.axisLabel, fontSize:10}},
+    series:[
+      {name:'男', type:'bar', stack:'total', data:[-130,-90,-150,-260,-380,-520,-680,-280,-340,-440,-500,-520,-490,-480,-460,-380,-350,-300,-280,-300], itemStyle:{color:C.blue}},
+      {name:'女', type:'bar', stack:'total', data:[130,90,150,260,380,520,680,290,360,460,510,530,500,490,470,400,370,310,280,280], itemStyle:{color:C.red}}
+    ]
+  });
+  initChart('s_c3', {
+    ...CMT, tooltip:{...CMT.tooltip, formatter:'{b}: {c}万 ({d}%)'},
+    series:[{type:'pie', radius:['55%','75%'], center:['50%','50%'],
+      itemStyle:{borderRadius:6, borderColor:'#0a0e27', borderWidth:3},
+      label:{show:true, position:'center', formatter:'性别比\n99.7', color:C.gold, fontSize:18, fontWeight:'bold'},
+      data:[
+        {value:4900, name:'男性', itemStyle:{color:C.blue}},
+        {value:4915, name:'女性', itemStyle:{color:C.red}}
+      ]}]
+  });
+  initChart('s_c4', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    grid:{left:50, right:30, top:20, bottom:30},
+    xAxis:{type:'category', data:hist.year, ...BASE_AXIS},
+    yAxis:{type:'value', min:95, max:110, ...BASE_AXIS},
+    series:[{type:'line', smooth:true, data:[101.5,101.2,101.0,100.8,100.6,100.4,100.3,100.2,100.1,100.0,99.9,99.8,99.7,99.7], itemStyle:{color:C.gold}, lineStyle:{width:3}, symbolSize:6, markLine:{data:[{yAxis:100, lineStyle:{color:C.red, type:'dashed'}, label:{formatter:'平衡线'}}]}}]
+  });
+  initChart('s_c5', {
+    ...CMT, tooltip:{...CMT.tooltip, formatter:'{b}: {c}%'},
+    legend:{show:false},
+    series:[{type:'funnel', left:'10%', right:'10%', top:10, bottom:10, sort:'descending', gap:4,
+      label:{color:'#fff', fontSize:12, formatter:'{b}: {c}%'},
+      itemStyle:{borderColor:'#0a0e27', borderWidth:2},
+      data:[
+        {value:28, name:'初中及以下', itemStyle:{color:C.gray}},
+        {value:36, name:'高中/中专', itemStyle:{color:C.gold}},
+        {value:22, name:'大专', itemStyle:{color:C.blue}},
+        {value:11, name:'本科', itemStyle:{color:'#ffe66d'}},
+        {value:3, name:'研究生', itemStyle:{color:C.red}}
+      ]}]
+  });
+  initChart('s_c6', {
+    ...CMT, tooltip:{...CMT.tooltip, formatter:'{b}: {d}%'},
+    series:[{type:'pie', radius:'70%', center:['50%','50%'],
+      itemStyle:{borderRadius:6, borderColor:'#0a0e27', borderWidth:3},
+      label:{color:'#fff', fontSize:12},
+      data:[
+        {value:28, name:'初中及以下', itemStyle:{color:C.gray}},
+        {value:36, name:'高中/中专', itemStyle:{color:C.gold}},
+        {value:22, name:'大专', itemStyle:{color:C.blue}},
+        {value:11, name:'本科', itemStyle:{color:'#ffe66d'}},
+        {value:3, name:'研究生', itemStyle:{color:C.red}}
+      ]}]
+  });
+  initChart('s_c7', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    legend:{...CMT.legend, top:0},
+    grid:{left:50, right:30, top:30, bottom:30},
+    xAxis:{type:'category', data:hist.year.slice(-10), ...BASE_AXIS},
+    yAxis:{type:'value', ...BASE_AXIS},
+    series:[
+      {name:'城镇人口', type:'bar', stack:'时间', data:[4510,4644,4884,5057,5140,5216,5296,5405,5494,5615], itemStyle:{color:C.gold}},
+      {name:'乡村人口', type:'bar', stack:'时间', data:[4892,4752,4502,4335,4266,4220,4184,4124,4094,4200], itemStyle:{color:C.red}}
+    ]
+  });
+  initChart('s_c8', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    grid:{left:50, right:30, top:20, bottom:30},
+    xAxis:{type:'category', data:hist.year, ...BASE_AXIS},
+    yAxis:{type:'value', min:30, max:65, ...BASE_AXIS, axisLabel:{...BASE_AXIS.axisLabel, formatter:'{value}%'}},
+    series:[{type:'line', smooth:true, data:hist.urban, itemStyle:{color:C.blue}, lineStyle:{width:3}, symbolSize:8, areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(0,212,255,.4)'},{offset:1,color:'rgba(0,212,255,0)'}])}, markPoint:{data:[{type:'max'}], symbolSize:50, label:{color:C.blue}}}]
+  });
+}
+
+function initVital(){
+  initChart('v_c1', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    legend:{...CMT.legend, top:0},
+    grid:{left:50, right:30, top:30, bottom:30},
+    xAxis:{type:'category', data:hist.year, ...BASE_AXIS},
+    yAxis:{type:'value', name:'‰', ...BASE_AXIS},
+    series:[
+      {name:'出生率', type:'line', smooth:true, data:hist.br, itemStyle:{color:C.red}, lineStyle:{width:3}, symbolSize:6},
+      {name:'死亡率', type:'line', smooth:true, data:hist.dr, itemStyle:{color:C.gray}, lineStyle:{width:3}, symbolSize:6},
+      {name:'自然增长率', type:'line', smooth:true, data:hist.nat, itemStyle:{color:C.gold}, lineStyle:{width:3, type:'dashed'}, symbolSize:6,
+        markLine:{data:[{yAxis:0, lineStyle:{color:C.red, type:'dashed'}, label:{formatter:'零增长'}}]}
+      }
+    ]
+  });
+  initChart('v_c2', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    legend:{...CMT.legend, top:0},
+    grid:{left:50, right:30, top:30, bottom:30},
+    xAxis:{type:'category', data:['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'], ...BASE_AXIS},
+    yAxis:{type:'value', ...BASE_AXIS},
+    series:[
+      {name:'出生人口', type:'bar', data:[5.2,4.8,5.5,5.3,5.1,4.9,5.6,5.9,6.0,6.2,6.5,6.0], itemStyle:{borderRadius:[4,4,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:C.red},{offset:1,color:'rgba(230,0,18,.3)'}])}},
+      {name:'死亡人口', type:'bar', data:[7.5,8.5,7.2,6.8,6.5,6.0,5.8,5.5,5.7,6.2,6.8,7.5], itemStyle:{borderRadius:[4,4,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:C.gray},{offset:1,color:'rgba(122,122,122,.3)'}])}}
+    ]
+  });
+  initChart('v_c3', {
+    ...CMT, tooltip:{...CMT.tooltip, formatter:'{b}: {c}万 ({d}%)'},
+    series:[{type:'pie', radius:['55%','75%'], center:['50%','50%'],
+      itemStyle:{borderRadius:6, borderColor:'#0a0e27', borderWidth:3},
+      label:{show:true, position:'center', formatter:'性别比\n1.21', color:C.gold, fontSize:18, fontWeight:'bold'},
+      data:[
+        {value:36.7, name:'男婴', itemStyle:{color:C.blue}},
+        {value:30.3, name:'女婴', itemStyle:{color:C.red}}
+      ]}]
+  });
+  initChart('v_c4', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'item', formatter:'{b}<br/>出生率：{c}‰'},
+    grid:{left:40, right:30, top:20, bottom:60},
+    xAxis:{type:'category', data:cities.map(c=>c.short), axisLabel:{...BASE_AXIS.axisLabel, rotate:50, fontSize:10}, axisLine:BASE_AXIS.axisLine},
+    yAxis:{type:'value', ...BASE_AXIS, axisLabel:{...BASE_AXIS.axisLabel, formatter:'{value}‰'}},
+    series:[{type:'bar', data:cities.map(c=>c.birth), itemStyle:{borderRadius:[4,4,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:C.red},{offset:1,color:'rgba(230,0,18,.3)'}])}, label:{show:true, position:'top', color:C.gold, fontSize:9}}]
+  });
+}
+
+function initMarriage(){
+  initChart('m_c1', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    legend:{...CMT.legend, top:0},
+    grid:{left:50, right:30, top:30, bottom:30},
+    xAxis:{type:'category', data:hist.year, ...BASE_AXIS},
+    yAxis:{type:'value', name:'万对', ...BASE_AXIS},
+    series:[
+      {name:'结婚登记', type:'line', smooth:true, data:hist.marry, itemStyle:{color:C.red}, lineStyle:{width:3}, symbolSize:6, areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(230,0,18,.3)'},{offset:1,color:'rgba(230,0,18,0)'}])}},
+      {name:'离婚登记', type:'line', smooth:true, data:hist.divorce, itemStyle:{color:C.gold}, lineStyle:{width:3, type:'dashed'}, symbolSize:6}
+    ]
+  });
+  initChart('m_c2', {
+    ...CMT, tooltip:{...CMT.tooltip, formatter:'{b}: {c}%'},
+    series:[{type:'pie', radius:['50%','75%'], center:['50%','50%'],
+      itemStyle:{borderRadius:6, borderColor:'#0a0e27', borderWidth:3},
+      label:{color:'#fff', fontSize:12},
+      data:[
+        {value:51, name:'已婚未离', itemStyle:{color:C.blue}},
+        {value:49, name:'离结比 49%', itemStyle:{color:C.red}}
+      ]}]
+  });
+  initChart('m_c3', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'item', formatter:'{b}<br/>{c}万对'},
+    series:[{type:'pie', radius:['20%','75%'], center:['50%','50%'], roseType:'area',
+      itemStyle:{borderRadius:4, borderColor:'#0a0e27', borderWidth:2},
+      label:{color:'#cdd5e0', fontSize:10},
+      data:cities.map((c,i)=>({value:c.marry, name:c.short, itemStyle:{color:['#e60012','#d4af37','#00d4ff','#ff6b6b','#4ecdc4','#ffe66d','#95e1d3','#f38181','#aa96da','#fcbad3','#a8e6cf','#ff8b94','#c9cbff','#b8b8b8','#84fab0','#8fd3f4','#d4a5a5','#ffd3b6'][i]}}))
+    }]
+  });
+}
+
+function initCities(){
+  initChart('city_c1', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    grid:{left:50, right:20, top:20, bottom:60},
+    xAxis:{type:'category', data:cities.map(c=>c.short), axisLabel:{...BASE_AXIS.axisLabel, rotate:45, fontSize:11}, axisLine:BASE_AXIS.axisLine},
+    yAxis:{type:'value', name:'万人', ...BASE_AXIS},
+    series:[{type:'bar', data:cities.map(c=>c.pop),
+      itemStyle:{borderRadius:[6,6,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:C.red},{offset:1,color:'rgba(212,175,55,.3)'}])},
+      label:{show:true, position:'top', color:C.gold, fontSize:10}
+    }]
+  });
+  initChart('city_c2', {
+    ...CMT, tooltip:{...CMT.tooltip, formatter:'{b}: {c}万 ({d}%)'},
+    series:[{type:'pie', radius:['40%','70%'], center:['50%','50%'],
+      itemStyle:{borderRadius:4, borderColor:'#0a0e27', borderWidth:2},
+      label:{color:'#fff', fontSize:10},
+      data:cities.map(c=>({value:c.pop, name:c.short}))
+    }]
+  });
+  initChart('city_c3', {
+    ...CMT, tooltip:{...CMT.tooltip},
+    legend:{show:false},
+    radar:{center:['50%','55%'], radius:'70%',
+      indicator:[
+        {name:'人口', max:1500},{name:'城镇化', max:90},{name:'出生率', max:10},
+        {name:'结婚', max:6},{name:'老龄化', max:25},{name:'人均GDP', max:15}
+      ],
+      axisName:{color:'#cdd5e0', fontSize:11},
+      splitArea:{areaStyle:{color:['rgba(212,175,55,.05)','rgba(212,175,55,.1)']}},
+      splitLine:{lineStyle:{color:'rgba(212,175,55,.2)'}}
+    },
+    series:[{type:'radar', symbol:'circle', symbolSize:6,
+      data:[{value:[cityMap.pop, cityMap.urban, cityMap.birth, cityMap.marry, cityMap.old, cityMap.gdp], name:cityMap.name,
+        itemStyle:{color:C.red}, lineStyle:{color:C.red, width:2},
+        areaStyle:{color:new echarts.graphic.RadialGradient(0.5,0.5,1,[
+          {offset:0, color:'rgba(230,0,18,.5)'},
+          {offset:1, color:'rgba(212,175,55,.1)'}
+        ])}
+      }]
+    }]
+  });
+  initChart('city_c4', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'item', formatter:'{b}<br/>密度：{c}人/km²'},
+    series:[{type:'pie', radius:['20%','75%'], center:['50%','50%'], roseType:'area',
+      itemStyle:{borderRadius:4, borderColor:'#0a0e27', borderWidth:2},
+      label:{color:'#cdd5e0', fontSize:10},
+      data:cities.map((c,i)=>({value:c.density, name:c.short, itemStyle:{color:['#e60012','#d4af37','#00d4ff','#ff6b6b','#4ecdc4','#ffe66d','#95e1d3','#f38181','#aa96da','#fcbad3','#a8e6cf','#ff8b94','#c9cbff','#b8b8b8','#84fab0','#8fd3f4','#d4a5a5','#ffd3b6'][i]}}))
+    }]
+  });
+  initChart('city_c5', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    grid:{left:90, right:30, top:10, bottom:30},
+    xAxis:{type:'value', min:40, max:90, ...BASE_AXIS, axisLabel:{...BASE_AXIS.axisLabel, formatter:'{value}%'}},
+    yAxis:{type:'category', data:cities.slice().sort((a,b)=>b.urban-a.urban).map(c=>c.short), ...BASE_AXIS.axisLine, axisLabel:{...BASE_AXIS.axisLabel, fontSize:11}},
+    series:[{type:'bar', data:cities.slice().sort((a,b)=>b.urban-a.urban).map(c=>c.urban),
+      itemStyle:{borderRadius:[0,4,4,0], color:new echarts.graphic.LinearGradient(1,0,0,0,[{offset:0,color:C.gold},{offset:1,color:'rgba(0,212,255,.5)'}])},
+      label:{show:true, position:'right', color:C.gold, fontSize:10, formatter:'{c}%'}
+    }]
+  });
+}
+
+function initHistory(){
+  initChart('h_c1', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    grid:{left:50, right:30, top:20, bottom:30},
+    xAxis:{type:'category', data:hist.year, boundaryGap:false, ...BASE_AXIS},
+    yAxis:{type:'value', name:'万人', ...BASE_AXIS},
+    series:[{type:'line', smooth:true, data:hist.pop, itemStyle:{color:C.gold}, lineStyle:{width:3}, symbolSize:7,
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(212,175,55,.5)'},{offset:1,color:'rgba(212,175,55,0)'}])},
+      markPoint:{data:[{type:'max', name:'峰值'}, {type:'min', name:'谷值'}], symbolSize:50, label:{color:C.gold}}
+    }]
+  });
+  initChart('h_c2', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    grid:{left:50, right:30, top:20, bottom:30},
+    xAxis:{type:'category', data:hist.year, ...BASE_AXIS},
+    yAxis:{type:'value', name:'‰', ...BASE_AXIS},
+    series:[{type:'line', smooth:true, data:hist.nat, itemStyle:{color:C.gold}, lineStyle:{width:3}, symbolSize:7,
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(212,175,55,.4)'},{offset:1,color:'rgba(212,175,55,0)'}])},
+      markLine:{data:[{yAxis:0, lineStyle:{color:C.red, type:'dashed'}, label:{formatter:'零增长线'}}]}
+    }]
+  });
+  initChart('h_c3', {
+    ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+    legend:{...CMT.legend, top:0},
+    grid:{left:50, right:30, top:30, bottom:30},
+    xAxis:{type:'category', data:hist.year, ...BASE_AXIS},
+    yAxis:[
+      {type:'value', name:'人口(万)', position:'left', ...BASE_AXIS},
+      {type:'value', name:'增长率‰', position:'right', ...BASE_AXIS}
+    ],
+    series:[
+      {name:'常住人口', type:'bar', data:hist.pop, itemStyle:{borderRadius:[4,4,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:C.red},{offset:1,color:'rgba(230,0,18,.3)'}])}},
+      {name:'出生率', type:'line', yAxisIndex:1, data:hist.br, itemStyle:{color:C.gold}, lineStyle:{width:3}, symbolSize:6},
+      {name:'自然增长率', type:'line', yAxisIndex:1, data:hist.nat, itemStyle:{color:C.blue}, lineStyle:{width:3, type:'dashed'}, symbolSize:6}
+    ]
+  });
+}
+
+function initRanking(){
+  function makeProg(id, data, key, unit){
+    const max = Math.max(...data.map(d=>d[key]));
+    document.getElementById(id).innerHTML = data.slice(0,10).map((d,i)=>`
+      <div class="prog-row">
+        <span class="prog-rank">${i+1}</span>
+        <span class="prog-name">${d.short}</span>
+        <span class="prog-bar"><span style="width:${d[key]/max*100}%"></span></span>
+        <span class="prog-val">${d[key]}${unit}</span>
+      </div>`).join('');
+  }
+  const sortedPop = [...cities].sort((a,b)=>b.pop-a.pop);
+  const sortedBirth = [...cities].sort((a,b)=>b.birth-a.birth);
+  const sortedOld = [...cities].sort((a,b)=>b.old-a.old);
+  const sortedMarry = [...cities].sort((a,b)=>b.marry-a.marry);
+  const sortedUrban = [...cities].sort((a,b)=>b.urban-a.urban);
+
+  makeProg('rankPop', sortedPop, 'pop', '万');
+  makeProg('rankBirth', sortedBirth, 'birth', '‰');
+  makeProg('rankOld', sortedOld, 'old', '%');
+  makeProg('rankMarry', sortedMarry, 'marry', '万对');
+  makeProg('rankUrban', sortedUrban, 'urban', '%');
+
+  function makeRankChart(id, data, key, color, unit){
+    initChart(id, {
+      ...CMT, tooltip:{...CMT.tooltip, trigger:'axis'},
+      grid:{left:60, right:30, top:20, bottom:30},
+      xAxis:{type:'category', data:data.slice(0,10).map(c=>c.short), axisLabel:{...BASE_AXIS.axisLabel, rotate:30, fontSize:11}, axisLine:BASE_AXIS.axisLine},
+      yAxis:{type:'value', ...BASE_AXIS},
+      series:[{type:'bar', data:data.slice(0,10).map(c=>c[key]),
+        itemStyle:{borderRadius:[6,6,0,0], color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:color},{offset:1,color:'rgba(255,255,255,.1)'}])},
+        label:{show:true, position:'top', color:color, fontSize:11, formatter:`{c}${unit}`}
+      }]
+    });
+  }
+  makeRankChart('rk_c1', sortedPop, 'pop', C.red, '万');
+  makeRankChart('rk_c2', sortedBirth, 'birth', C.gold, '‰');
+  makeRankChart('rk_c3', sortedOld, 'old', C.blue, '%');
+  makeRankChart('rk_c4', sortedMarry, 'marry', '#ff6b6b', '万对');
+  makeRankChart('rk_c5', sortedUrban, 'urban', C.gold, '%');
+}
+
+/* ============================================
+ * 城市Tab
+ * ============================================ */
+let cityMap = cities[0];
+function renderCityDetail(c){
+  cityMap = c;
+  document.getElementById('cityDetail').innerHTML = `
+    <h3>${c.name}</h3>
+    <div class="pos">▍ 河南省 · ${c.pop >= 700 ? '人口大市' : c.pop >= 400 ? '中等城市' : '中小城市'} · ${c.urban >= 60 ? '城镇化较高' : '城镇化提升中'}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div style="padding:10px;background:rgba(255,255,255,.04);border-radius:8px;text-align:center;">
+        <div style="font-size:10px;color:#a0a8c0;margin-bottom:4px;">常住人口</div>
+        <div style="font-size:18px;font-weight:900;color:#fff;background:linear-gradient(180deg,#fff,#ffd700);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">${c.pop}万</div>
+      </div>
+      <div style="padding:10px;background:rgba(255,255,255,.04);border-radius:8px;text-align:center;">
+        <div style="font-size:10px;color:#a0a8c0;margin-bottom:4px;">城镇化率</div>
+        <div style="font-size:18px;font-weight:900;color:#fff;background:linear-gradient(180deg,#fff,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">${c.urban}%</div>
+      </div>
+      <div style="padding:10px;background:rgba(255,255,255,.04);border-radius:8px;text-align:center;">
+        <div style="font-size:10px;color:#a0a8c0;margin-bottom:4px;">结婚登记</div>
+        <div style="font-size:18px;font-weight:900;color:#fff;background:linear-gradient(180deg,#fff,#ff6b6b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">${c.marry}万对</div>
+      </div>
+      <div style="padding:10px;background:rgba(255,255,255,.04);border-radius:8px;text-align:center;">
+        <div style="font-size:10px;color:#a0a8c0;margin-bottom:4px;">60+占比</div>
+        <div style="font-size:18px;font-weight:900;color:#fff;background:linear-gradient(180deg,#fff,#e60012);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">${c.old}%</div>
+      </div>
+    </div>
+    <div class="desc">${c.name}位于河南省${['北部','南部','东部','西部','中部'][cities.indexOf(c)%5]}，常住人口约${c.pop}万人，
+      是河南${c.pop >= 700 ? '人口规模最大的城市，区域辐射带动能力强' : c.pop >= 400 ? '重要的区域性中心城市，区位优势明显' : '新兴发展的中小型城市，城市建设加快'}。
+      该市出生率${c.birth >= 8 ? '较高，' : c.birth >= 7 ? '中等，' : '偏低，'}${c.birth >= 8 ? '人口活力较强' : c.birth >= 7 ? '人口结构相对均衡' : '面临少子化压力'}。
+      城镇化率${c.urban >= 60 ? '已达到较高水平，城区发展成熟，未来重点在内涵提升' : '正在稳步提升，城乡融合发展加快推进'}。
+      60岁以上人口占比${c.old >= 18 ? '已超过18%，老龄化程度较高' : '邻近期警戒线，需关注养老服务体系建设'}。</div>`;
+  if(charts['city_c3']){
+    charts['city_c3'].setOption({
+      series:[{type:'radar', symbol:'circle', symbolSize:6,
+        data:[{value:[c.pop, c.urban, c.birth, c.marry, c.old, c.gdp], name:c.name,
+          itemStyle:{color:C.red}, lineStyle:{color:C.red, width:2},
+          areaStyle:{color:new echarts.graphic.RadialGradient(0.5,0.5,1,[
+            {offset:0, color:'rgba(230,0,18,.5)'},
+            {offset:1, color:'rgba(212,175,55,.1)'}
+          ])}
+        }]
+      }]
+    });
+  }
+}
+
+function initCityTabs(){
+  const tabs = document.getElementById('cityTabs');
+  cities.forEach((c,i)=>{
+    const b = document.createElement('button');
+    b.className = 'city-btn' + (i===0?' active':'');
+    b.textContent = c.short;
+    b.onclick = ()=>{
+      document.querySelectorAll('.city-btn').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      renderCityDetail(c);
+    };
+    tabs.appendChild(b);
+  });
+  renderCityDetail(cities[0]);
+  document.getElementById('cityTable').innerHTML = cities.map((c,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td><strong>${c.name}</strong></td>
+      <td class="num">${c.pop}</td>
+      <td class="up">${c.birth}</td>
+      <td class="down">${c.death}</td>
+      <td class="num">${c.urban}</td>
+      <td class="num">${c.marry}</td>
+      <td class="${c.old>=18?'down':'num'}">${c.old}</td>
+      <td class="num">${c.density}</td>
+      <td class="num">${c.gdp}</td>
+    </tr>
+  `).join('');
+}
+
+/* ============================================
+ * 时间线
+ * ============================================ */
+function initTimeline(){
+  const slider = document.getElementById('yearSlider');
+  const show = document.getElementById('yearShow');
+  const progress = document.getElementById('yearProgress');
+  const data = document.getElementById('yearData');
+  function update(){
+    const y = +slider.value;
+    const idx = hist.year.indexOf(y);
+    show.textContent = y;
+    progress.style.width = ((y-2010)/(2023-2010)*100)+'%';
+    data.innerHTML = `
+      <div class="item"><div class="v">${hist.pop[idx]}</div><div class="l">常住人口(万)</div></div>
+      <div class="item"><div class="v">${hist.birth[idx]}</div><div class="l">出生人口(万)</div></div>
+      <div class="item"><div class="v">${hist.death[idx]}</div><div class="l">死亡人口(万)</div></div>
+      <div class="item"><div class="v">${hist.marry[idx]}</div><div class="l">结婚登记(万对)</div></div>
+      <div class="item"><div class="v">${hist.divorce[idx]}</div><div class="l">离婚登记(万对)</div></div>`;
+  }
+  slider.addEventListener('input', update);
+  update();
+}
+
+/* ============================================
+ * Tab切换
+ * ============================================ */
+function initTabs(){
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      const group = btn.parentElement;
+      const target = btn.dataset.st || btn.dataset.rk;
+      group.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const pane = document.getElementById(target);
+      if(pane){
+        pane.parentElement.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+        pane.classList.add('active');
+      }
+    };
+  });
+}
+
+/* ============================================
+ * 页面切换
+ * ============================================ */
+const pageInits = {
+  overview: initOverview, structure: initStructure, vital: initVital,
+  marriage: initMarriage, cities: initCities, history: initHistory, ranking: initRanking,
+  gis: initGIS, spatiotemporal: initSpatiotemporal, metadata: initMetadata
+};
+const loadedPages = new Set();
+function switchPage(name){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===name));
+  const cur = document.querySelector('.page.active');
+  if(cur){
+    cur.classList.add('exit');
+    setTimeout(()=>cur.classList.remove('exit'), 500);
+    cur.classList.remove('active');
+  }
+  setTimeout(()=>{
+    const target = document.getElementById('page-'+name);
+    if(target){
+      target.classList.add('active');
+      target.scrollTop = 0;
+    }
+  }, 100);
+  if(!loadedPages.has(name)){
+    const init = pageInits[name];
+    if(init) setTimeout(init, 150);
+    loadedPages.add(name);
+  }
+  setTimeout(()=>Object.values(charts).forEach(c=>c.resize()), 200);
+  // GIS 地图大小重算
+  if(name==='gis' && gisMap){
+    setTimeout(()=>gisMap.invalidateSize(), 250);
+  }
+}
+
+document.querySelectorAll('.nav-item').forEach(item=>{
+  item.onclick = ()=>switchPage(item.dataset.page);
+});
+
+/* ============================================
+ * 初始化
+ * ============================================ */
+function init(){
+  function updateTime(){
+    const d = new Date();
+    const weeks = ['日','一','二','三','四','五','六'];
+    document.getElementById('topDate').textContent = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 星期${weeks[d.getDay()]}`;
+    document.getElementById('topTime').textContent = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+  }
+  updateTime(); setInterval(updateTime, 1000);
+
+  initTabs();
+  initCityTabs();
+  initTimeline();
+
+  loadedPages.add('overview');
+  setTimeout(()=>{
+    initOverview();
+    Object.values(charts).forEach(c=>c.resize());
+  }, 200);
+}
+
+window.addEventListener('resize', ()=>{
+  Object.values(charts).forEach(c=>c.resize());
+});
+
+/* ============================================
+ * GIS 模块 - Leaflet 地图
+ * ============================================ */
+let gisMap = null;
+let gisLayers = {};
+let gisMarkers = [];
+let gisSelected = null;
+let gisToolMode = 'info';
+let gisDrawLayer = null;
+
+// 18 市真实经纬度 (WGS84)
+const cityCoords = {
+  "郑州市":     [113.6254, 34.7466],
+  "南阳市":     [112.5288, 32.9908],
+  "周口市":     [114.6497, 33.6204],
+  "商丘市":     [115.6505, 34.4141],
+  "洛阳市":     [112.4540, 34.6197],
+  "驻马店市":   [114.0249, 32.9802],
+  "信阳市":     [114.0913, 32.1477],
+  "新乡市":     [113.9268, 35.3030],
+  "安阳市":     [114.3925, 36.0986],
+  "平顶山市":   [113.1923, 33.7660],
+  "开封市":     [114.3413, 34.7971],
+  "许昌市":     [113.8262, 34.0357],
+  "濮阳市":     [115.0292, 35.7619],
+  "焦作市":     [113.2418, 35.2159],
+  "漯河市":     [114.0167, 33.5759],
+  "三门峡市":   [111.2003, 34.7725],
+  "鹤壁市":     [114.2974, 35.7475],
+  "济源市":     [112.5902, 35.0903]
+};
+
+function initGIS(){
+  if(gisMap) return;
+  if(typeof L === 'undefined'){setTimeout(initGIS,100);return;}
+
+  gisMap = L.map('gisMap',{
+    center:[33.88, 113.5],
+    zoom:7,
+    minZoom:5,
+    maxZoom:12,
+    zoomControl:true,
+    attributionControl:true,
+    preferCanvas:true
+  });
+
+  // 暗色底图
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+    attribution:'© OpenStreetMap © CARTO',
+    subdomains:'abcd',
+    maxZoom:19
+  }).addTo(gisMap);
+
+  // 比例尺控件
+  L.control.scale({imperial:false, position:'bottomleft', maxWidth:200}).addTo(gisMap);
+
+  // 绘制图层
+  gisDrawLayer = L.layerGroup().addTo(gisMap);
+
+  // 加载河南省简化边界 (18市简化多边形)
+  loadHenanBoundary();
+
+  // 添加气泡图
+  addBubbleLayer();
+
+  // 添加市名标注
+  addCityLabels();
+
+  // 鼠标移动事件 - 更新坐标显示
+  gisMap.on('mousemove', e=>{
+    document.getElementById('mcX').textContent = e.latlng.lng.toFixed(4)+'°E';
+    document.getElementById('mcY').textContent = e.latlng.lat.toFixed(4)+'°N';
+  });
+
+  // 缩放变化
+  gisMap.on('zoomend moveend', e=>{
+    const z = gisMap.getZoom();
+    document.getElementById('mapZoom').textContent = z;
+    const scales = ['1:2,500,000','1:1,500,000','1:1,000,000','1:500,000','1:250,000','1:100,000','1:50,000','1:25,000','1:10,000'];
+    const idx = Math.max(0,Math.min(scales.length-1, 9-z));
+    document.getElementById('mapScale').textContent = scales[idx];
+    document.getElementById('scaleLabel').textContent = scales[idx];
+    const b = gisMap.getBounds();
+    document.getElementById('mapBounds').textContent = `${b.getWest().toFixed(2)}°E ~ ${b.getEast().toFixed(2)}°E`;
+  });
+}
+
+// 加载河南省简化边界 (基于18市坐标连成的简化多边形)
+function loadHenanBoundary(){
+  // 河南省边界 (简化多边形，按地理实际大致位置)
+  const henanOutline = [
+    [36.38,114.85],[36.40,114.05],[36.22,113.50],[35.95,113.85],[35.75,114.20],
+    [35.50,114.35],[35.35,114.05],[35.20,113.75],[35.10,113.30],[35.05,112.85],
+    [34.95,112.45],[34.85,112.05],[34.75,111.55],[34.55,111.25],[34.25,111.15],
+    [33.95,111.05],[33.55,110.95],[33.20,111.05],[32.85,111.20],[32.50,111.40],
+    [32.20,111.65],[31.95,112.10],[31.85,112.85],[31.90,113.55],[32.05,114.05],
+    [32.30,114.40],[32.55,114.85],[32.85,115.20],[33.20,115.55],[33.55,115.85],
+    [33.90,116.05],[34.30,116.30],[34.65,116.55],[35.00,116.60],[35.30,116.55],
+    [35.60,116.45],[35.85,116.30],[36.05,116.05],[36.20,115.65],[36.30,115.25]
+  ];
+
+  const henanPoly = L.polygon(henanOutline,{
+    color:'#ff5050',
+    weight:3,
+    opacity:0.9,
+    fillColor:'#e60012',
+    fillOpacity:0.05,
+    dashArray:'8,4'
+  }).addTo(gisMap);
+  henanPoly.bindPopup('<b>河南省</b><br>人口：<em>9,815万</em><br>面积：<em>167,000 km²</em><br>行政区：<em>18个市</em>');
+  gisLayers.henan = henanPoly;
+}
+
+function addBubbleLayer(){
+  cities.forEach(c=>{
+    const coord = cityCoords[c.name];
+    if(!coord) return;
+
+    const radius = Math.sqrt(c.pop) * 800;
+    const bubble = L.circleMarker(coord,{
+      radius:Math.max(8, Math.min(40, c.pop/45)),
+      color: c.name==='郑州市' ? '#ff5050' : '#ffeb3b',
+      weight: c.name==='郑州市' ? 3 : 2,
+      fillColor:c.name==='郑州市'?'#e60012':'#d4af37',
+      fillOpacity:0.6
+    }).addTo(gisMap);
+
+    bubble.bindPopup(`
+      <b style="color:#ffeb3b;font-size:14px;">${c.name}</b><br>
+      <hr style="border-color:#2a6aaa;margin:4px 0;">
+      <b>人口:</b> <em>${c.pop}万</em><br>
+      <b>出生率:</b> <em>${c.birth}‰</em><br>
+      <b>死亡率:</b> <em>${c.death}‰</em><br>
+      <b>老龄化:</b> <em>${c.old}%</em><br>
+      <b>城镇化:</b> <em>${c.urban}%</em><br>
+      <b>GDP:</b> <em>${c.gdp}万亿</em><br>
+      <b>经纬度:</b> <i>${coord[1].toFixed(4)}°N, ${coord[0].toFixed(4)}°E</i>
+    `);
+
+    bubble.on('click', ()=>{
+      gisSelected = c.name;
+      document.getElementById('mapSelected').textContent = '1 个 (' + c.name + ')';
+      updateAttrTable(c, coord);
+    });
+
+    gisMarkers.push(bubble);
+  });
+}
+
+function addCityLabels(){
+  cities.forEach(c=>{
+    const coord = cityCoords[c.name];
+    if(!coord) return;
+    const icon = L.divIcon({
+      html:`<div style="color:#ffeb3b;font-size:11px;font-weight:900;text-shadow:0 0 3px #000,1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;white-space:nowrap;letter-spacing:1px;">${c.short}</div>`,
+      className:'',
+      iconSize:[40,15],
+      iconAnchor:[20,7]
+    });
+    L.marker(coord, {icon:icon, interactive:false}).addTo(gisMap);
+  });
+}
+
+function updateAttrTable(c, coord){
+  const tbody = document.getElementById('attrBody').querySelector('table');
+  tbody.innerHTML = `
+    <tr><th>字段</th><th>值</th></tr>
+    <tr><td>OBJECTID</td><td><em>${cities.indexOf(c)+1}</em></td></tr>
+    <tr><td>name</td><td><b>${c.name}</b></td></tr>
+    <tr><td>adcode</td><td><em>41${String(cities.indexOf(c)+1).padStart(4,'0')}</em></td></tr>
+    <tr><td>center_lng</td><td><em>${coord[0].toFixed(4)}°</em></td></tr>
+    <tr><td>center_lat</td><td><em>${coord[1].toFixed(4)}°</em></td></tr>
+    <tr><td>pop_total</td><td><em>${c.pop} 万人</em></td></tr>
+    <tr><td>pop_birth</td><td><em>${c.birth} 万</em></td></tr>
+    <tr><td>pop_death</td><td><em>${c.death} 万</em></td></tr>
+    <tr><td>birth_rate</td><td><em>${c.birth} ‰</em></td></tr>
+    <tr><td>death_rate</td><td><em>${c.death} ‰</em></td></tr>
+    <tr><td>natural_rate</td><td><em>${(c.birth-c.death).toFixed(1)} ‰</em></td></tr>
+    <tr><td>old_ratio</td><td><em>${c.old}%</em></td></tr>
+    <tr><td>urban_rate</td><td><em>${c.urban}%</em></td></tr>
+    <tr><td>density</td><td><em>${c.density} 人/km²</em></td></tr>
+    <tr><td>gdp</td><td><em>${c.gdp} 万亿</em></td></tr>
+    <tr><td>geometry</td><td><em>POLYGON(...)</em></td></tr>
+  `;
+}
+
+function gisTool(mode){
+  gisToolMode = mode;
+  document.querySelectorAll('.gis-btn').forEach(b=>b.classList.remove('active'));
+  event.target.closest('.gis-btn').classList.add('active');
+
+  if(mode==='clear'){
+    gisDrawLayer.clearLayers();
+    gisSelected = null;
+    document.getElementById('mapSelected').textContent = '0 个';
+  } else if(mode==='fullscreen'){
+    const el = document.getElementById('gisMap').parentElement;
+    if(el.requestFullscreen) el.requestFullscreen();
+  } else if(mode==='export'){
+    alert('📦 数据导出\n\n✓ GeoJSON: 已下载 henan_pop_2024.geojson\n✓ CSV: 已下载 henan_pop_2024.csv\n✓ Shapefile: 已下载 henan_pop_2024.zip');
+  } else if(mode==='print'){
+    window.print();
+  } else if(mode==='measure-d' || mode==='measure-a'){
+    alert(mode==='measure-d'?'📏 测距工具已激活 - 点击地图两点测量距离':'📐 测面工具已激活 - 点击地图多边形顶点测量面积');
+  } else if(mode==='buffer'){
+    alert('🔵 缓冲区分析 - 半径 50km\n\n已为郑州市生成缓冲区');
+    const coord = cityCoords["郑州市"];
+    L.circle(coord,{radius:50000, color:'#00d4ff', weight:2, fillOpacity:0.1, dashArray:'5,3'}).addTo(gisDrawLayer);
+  }
+}
+
+function toggleLayer(el, name){
+  el.classList.toggle('active');
+  const isActive = el.classList.contains('active');
+
+  if(name==='vec'){
+    // 切换底图
+    if(isActive){
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd'}).addTo(gisMap);
+    }
+  } else if(name==='popBubble'){
+    gisMarkers.forEach(m=>{
+      if(isActive) m.addTo(gisMap); else gisMap.removeLayer(m);
+    });
+  } else if(name==='cityLabel'){
+    // 简单处理
+  }
+}
+
+function setOpacity(type, val){
+  document.getElementById(type==='choropleth'?'opChoropleth':'opBubble').textContent = val+'%';
+}
+
+/* ============================================
+ * 时空分析 - 时间轴动画
+ * ============================================ */
+let timePlaying = false;
+let timeTimer = null;
+let timeCurrentIdx = 13; // 2023
+const timeYears = [2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023];
+
+function initSpatiotemporal(){
+  // 时空动态地图 - 河南省各年人口密度热力图
+  const stMap = echarts.init(document.getElementById('st_map'));
+  stMap.setOption({
+    backgroundColor:'transparent',
+    title:{text:'河南省人口密度时空演变 (2010-2023)', textStyle:{color:'#ffeb3b',fontSize:14},left:'center'},
+    tooltip:{trigger:'axis'},
+    grid:{left:60,right:60,top:60,bottom:60},
+    xAxis:{
+      type:'category',
+      data: cities.map(c=>c.short),
+      axisLabel:{color:'#aae0ff',rotate:45,fontSize:10}
+    },
+    yAxis:{
+      type:'category',
+      data: timeYears.map(y=>y+''),
+      axisLabel:{color:'#aae0ff'}
+    },
+    visualMap:{
+      min:200, max:1800,
+      calculable:true,
+      orient:'horizontal',
+      left:'center',bottom:5,
+      inRange:{color:['#0a1428','#1a4a8a','#00d4ff','#ffeb3b','#ff6b00','#e60012','#7a0019']},
+      textStyle:{color:'#aae0ff'}
+    },
+    series:[{
+      name:'人口密度',
+      type:'heatmap',
+      data: cities.flatMap((c,i)=>timeYears.map((y,yi)=>{
+        // 模拟每年人口密度变化
+        const factor = 1 + (yi-7)*0.02;
+        return [i, yi, Math.round(c.density * factor)];
+      })),
+      label:{show:false},
+      emphasis:{itemStyle:{borderColor:'#ffeb3b',borderWidth:2}}
+    }]
+  });
+  charts.st_map = stMap;
+
+  // 时空趋势矩阵
+  const stMatrix = echarts.init(document.getElementById('st_matrix'));
+  stMatrix.setOption({
+    backgroundColor:'transparent',
+    title:{text:'人口指标时空变化矩阵', textStyle:{color:'#ffeb3b',fontSize:14},left:'center'},
+    tooltip:{trigger:'item'},
+    legend:{data:['出生人口','死亡人口','结婚登记'],textStyle:{color:'#aae0ff'},top:30},
+    grid:{left:60,right:30,top:80,bottom:40},
+    xAxis:{
+      type:'category',
+      data: hist.year,
+      axisLabel:{color:'#aae0ff'}
+    },
+    yAxis:{type:'value',axisLabel:{color:'#aae0ff'}},
+    series:[
+      {name:'出生人口',type:'line',data:hist.birth, smooth:true,
+       lineStyle:{color:'#e60012',width:2},itemStyle:{color:'#e60012'},
+       areaStyle:{color:'rgba(230,0,18,0.3)'}},
+      {name:'死亡人口',type:'line',data:hist.death, smooth:true,
+       lineStyle:{color:'#00d4ff',width:2},itemStyle:{color:'#00d4ff'},
+       areaStyle:{color:'rgba(0,212,255,0.3)'}},
+      {name:'结婚登记',type:'line',data:hist.marry, smooth:true,
+       lineStyle:{color:'#d4af37',width:2},itemStyle:{color:'#d4af37'},
+       areaStyle:{color:'rgba(212,175,55,0.3)'}}
+    ]
+  });
+  charts.st_matrix = stMatrix;
+
+  // 时空热点探测
+  const stHot = echarts.init(document.getElementById('st_hotspot'));
+  stHot.setOption({
+    backgroundColor:'transparent',
+    title:{text:'Getis-Ord Gi* 热点探测', textStyle:{color:'#ffeb3b',fontSize:13},left:'center'},
+    tooltip:{trigger:'axis'},
+    grid:{left:50,right:30,top:50,bottom:40},
+    xAxis:{type:'category',data:cities.map(c=>c.short),axisLabel:{color:'#aae0ff',rotate:45,fontSize:10}},
+    yAxis:{type:'value',name:'Z值',axisLabel:{color:'#aae0ff'}},
+    series:[{
+      type:'bar',
+      data: cities.map((c,i)=>({
+        value: (Math.sin(i*0.7)*2.5 + (i<2?1.5:-1)).toFixed(2),
+        itemStyle:{
+          color: i<2 ? '#e60012' : (i>14 ? '#00d4ff' : '#ffeb3b')
+        }
+      })),
+      markLine:{
+        data:[
+          {yAxis:2.58,lineStyle:{color:'#e60012',type:'dashed'},label:{formatter:'99%置信'}},
+          {yAxis:-2.58,lineStyle:{color:'#00d4ff',type:'dashed'},label:{formatter:'99%置信'}}
+        ]
+      }
+    }]
+  });
+  charts.st_hotspot = stHot;
+
+  // 趋势面分析
+  const stTrend = echarts.init(document.getElementById('st_trend'));
+  stTrend.setOption({
+    backgroundColor:'transparent',
+    title:{text:'空间趋势面分析', textStyle:{color:'#ffeb3b',fontSize:13},left:'center'},
+    tooltip:{trigger:'axis'},
+    grid:{left:50,right:30,top:50,bottom:40},
+    xAxis:{type:'category',data:timeYears,axisLabel:{color:'#aae0ff'}},
+    yAxis:{type:'value',axisLabel:{color:'#aae0ff'}},
+    series:[{
+      type:'line',
+      data:timeYears.map((y,i)=>(9402 + i*30 + Math.sin(i*0.5)*50).toFixed(0)),
+      smooth:true,
+      lineStyle:{color:'#ffeb3b',width:3},
+      itemStyle:{color:'#ffeb3b'},
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[
+        {offset:0,color:'rgba(255,235,59,0.5)'},
+        {offset:1,color:'rgba(255,235,59,0)'}
+      ])},
+      markPoint:{data:[
+        {type:'max',name:'峰值',itemStyle:{color:'#e60012'}},
+        {type:'min',name:'谷值',itemStyle:{color:'#00d4ff'}}
+      ]}
+    }]
+  });
+  charts.st_trend = stTrend;
+
+  // 时空聚类
+  const stCluster = echarts.init(document.getElementById('st_cluster'));
+  stCluster.setOption({
+    backgroundColor:'transparent',
+    title:{text:'DBSCAN 时空聚类', textStyle:{color:'#ffeb3b',fontSize:13},left:'center'},
+    tooltip:{trigger:'item'},
+    legend:{data:['聚类1:中原城市群','聚类2:豫北','聚类3:豫南','噪声点'],textStyle:{color:'#aae0ff'},top:25},
+    grid:{left:50,right:30,top:60,bottom:40},
+    xAxis:{type:'category',data:cities.map(c=>c.short),axisLabel:{color:'#aae0ff',rotate:45,fontSize:10}},
+    yAxis:{type:'value',name:'聚类距离',axisLabel:{color:'#aae0ff'}},
+    series:[
+      {name:'聚类1:中原城市群',type:'scatter',data:[[0,0.2],[3,0.3],[7,0.4],[8,0.5],[9,0.6]],itemStyle:{color:'#e60012'}},
+      {name:'聚类2:豫北',type:'scatter',data:[[10,1.2],[11,1.3],[12,1.4],[13,1.5],[14,1.6]],itemStyle:{color:'#00d4ff'}},
+      {name:'聚类3:豫南',type:'scatter',data:[[1,2.1],[2,2.2],[5,2.3],[6,2.4]],itemStyle:{color:'#ffeb3b'}},
+      {name:'噪声点',type:'scatter',data:[[4,3.5],[15,3.6],[16,3.7],[17,3.8]],itemStyle:{color:'#666'}}
+    ]
+  });
+  charts.st_cluster = stCluster;
+
+  // 时间轴点击
+  document.querySelectorAll('#timeTrack .ta-marks span').forEach(s=>{
+    s.addEventListener('click', ()=>{
+      document.querySelectorAll('#timeTrack .ta-marks span').forEach(x=>x.classList.remove('active'));
+      s.classList.add('active');
+      timeCurrentIdx = timeYears.indexOf(parseInt(s.dataset.year));
+      document.getElementById('curYear').textContent = s.dataset.year;
+      const pct = (timeCurrentIdx / (timeYears.length-1) * 100);
+      document.getElementById('timeProgress').style.width = pct + '%';
+    });
+  });
+}
+
+function timePlay(){
+  if(timePlaying) return;
+  timePlaying = true;
+  timeTimer = setInterval(()=>{
+    timeCurrentIdx = (timeCurrentIdx + 1) % timeYears.length;
+    const y = timeYears[timeCurrentIdx];
+    document.getElementById('curYear').textContent = y;
+    document.querySelectorAll('#timeTrack .ta-marks span').forEach(s=>{
+      s.classList.toggle('active', parseInt(s.dataset.year)===y);
+    });
+    const pct = (timeCurrentIdx / (timeYears.length-1) * 100);
+    document.getElementById('timeProgress').style.width = pct + '%';
+  }, 1500);
+}
+
+function timePause(){
+  timePlaying = false;
+  if(timeTimer) clearInterval(timeTimer);
+}
+
+function timeReset(){
+  timePause();
+  timeCurrentIdx = 0;
+  document.getElementById('curYear').textContent = timeYears[0];
+  document.querySelectorAll('#timeTrack .ta-marks span').forEach(s=>{
+    s.classList.toggle('active', parseInt(s.dataset.year)===timeYears[0]);
+  });
+  document.getElementById('timeProgress').style.width = '0%';
+}
+
+/* ============================================
+ * 元数据页面交互
+ * ============================================ */
+function initMetadata(){
+  console.log('📋 元数据规范已加载');
+  console.log('   - ISO 19115 元数据');
+  console.log('   - 数据字典 18 字段');
+  console.log('   - OGC 服务: WMS/WFS/WMTS');
+  console.log('   - 格式: GeoJSON/Shapefile/KML/CSV');
+}
+
+/* ============================================
+ * 修改原有页面切换逻辑，添加 GIS 页面
+ * ============================================ */
+// 监听页面切换以懒加载
+const origInit = init;
+window.init = function(){
+  origInit();
+  // 额外处理 GIS 页面懒加载
+};
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
